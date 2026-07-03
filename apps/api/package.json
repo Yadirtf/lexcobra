@@ -1,0 +1,44 @@
+{
+  "name": "@lexcobra/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
+    "db:seed": "tsx src/infrastructure/database/seed.ts",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.0.3",
+    "@fastify/rate-limit": "^10.2.2",
+    "@fastify/swagger": "^9.4.2",
+    "@fastify/swagger-ui": "^5.2.3",
+    "@lexcobra/shared-schemas": "workspace:*",
+    "@lexcobra/shared-types": "workspace:*",
+    "@prisma/client": "^6.10.1",
+    "bcryptjs": "3.0.3",
+    "exceljs": "^4.4.0",
+    "fastify": "^5.4.0",
+    "ioredis": "^5.4.2",
+    "nanoid": "^5.1.5",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.0.0",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "3.0.0",
+    "@types/node": "^22.15.30",
+    "prisma": "^6.10.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

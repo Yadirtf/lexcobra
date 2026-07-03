@@ -1,0 +1,98 @@
+.obligations-table-container {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow-x: auto;
+  margin-top: 1.5rem;
+}
+
+.obligations-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.obligations-table th {
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.obligations-table td {
+  padding: 1rem 1.5rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.obligations-table tr:last-child td {
+  border-bottom: none;
+}
+
+.obligations-table tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.debtor-name {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.debtor-doc {
+  font-size: 0.75rem;
+  color: var(--text-4);
+}
+
+.currency {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+  color: var(--accent-h);
+}
+
+/* Tabs para el Modal */
+.tabs-header {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-4);
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: var(--text-2);
+}
+
+.tab-btn.active {
+  color: var(--text);
+}
+
+.tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-h);
+  border-radius: 2px 2px 0 0;
+}
+
+.tab-content {
+  min-height: 250px;
+}

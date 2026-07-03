@@ -1,0 +1,561 @@
+// ═══════════════════════════════════════════════════════════════
+//  LexCobra — Prisma Schema (Alineado con base_De_datos.sql oficial)
+//  Base de datos: PostgreSQL 16
+//  Estrategia Multi-Tenant: Shared Schema + cliente_id en tablas del tenant
+// ═══════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────────────────────────
+//  0. MÓDULO GEOGRÁFICO (Códigos DANE)
+// ───────────────────────────────────────────────
+
+/// Departamentos de Colombia (código DANE)
+model Departamento {
+  id     String @id @default(uuid())
+  nombre String
+
+  municipios   Municipio[]
+  clientes     Cliente[]
+  obligaciones Obligacion[]
+
+  @@map("departamentos")
+}
+
+/// Municipios de Colombia (código DANE)
+model Municipio {
+  id              String @id @default(uuid())
+  departamentoId  String
+  nombre          String
+
+  departamento Departamento   @relation(fields: [departamentoId], references: [id])
+  clientes     Cliente[]
+  obligaciones Obligacion[]
+
+  @@unique([departamentoId, nombre])
+  @@map("municipios")
+}
+
+// ───────────────────────────────────────────────
+//  1. MÓDULO DE SUSCRIPCIONES Y SAAS
+// ───────────────────────────────────────────────
+
+/// Plan de suscripción disponible en la plataforma
+model Plan {
+  id             String  @id @default(uuid())
+  nombre         String
+  descripcion    String?
+  precio         Decimal @db.Decimal(12, 2)
+  duracionMeses  Int     // 6 para semestral, 12 para anual
+  limitUsuarios  Int
+  activo         Boolean @default(true)
+
+  suscripciones Suscripcion[]
+
+  @@map("planes")
+}
+
+/// Estados posibles de un cliente (Activo, Inactivo)
+model EstadoCliente {
+  id          String  @id @default(uuid())
+  estado      String
+  descripcion String?
+
+  clientes Cliente[]
+
+  @@map("estados_cliente")
+}
+
+/// Cliente / Empresa que contrata el servicio (= Tenant)
+model Cliente {
+  id               String   @id @default(uuid())
+  nit              String   @unique
+  nombreComercial  String
+  subdominio       String   @unique // Para resolución multi-tenant por hostname
+  telefono         String?
+  direccion        String?
+  departamentoId   String?
+  municipioId      String?
+  estadoId         String?
+  logoUrl          String?
+  createdAt        DateTime @default(now())
+
+  departamento Departamento?  @relation(fields: [departamentoId], references: [id])
+  municipio    Municipio?     @relation(fields: [municipioId], references: [id])
+  estado       EstadoCliente? @relation(fields: [estadoId], references: [id])
+
+  // Relaciones internas del tenant
+  suscripciones    Suscripcion[]
+  usuarios         Usuario[]
+  empleados        Empleado[]
+  carteras         Cartera[]
+  personas         Persona[]
+  juzgados         Juzgado[]
+  obligaciones     Obligacion[]
+
+  // Módulo de reportes (extensión)
+  reportConfigs    ReportConfig[]
+  reportSnapshots  ReportSnapshot[]
+  reportLinks      ReportLink[]
+
+  @@map("clientes")
+}
+
+/// Estados de suscripción (Activa, Suspendida, Vencida, Demo)
+model EstadoSuscripcion {
+  id          String  @id @default(uuid())
+  estado      String
+  descripcion String?
+
+  suscripciones Suscripcion[]
+
+  @@map("estados_suscripciones")
+}
+
+/// Suscripción de un cliente a un plan
+model Suscripcion {
+  id          String   @id @default(uuid())
+  clienteId   String
+  planId      String?
+  fechaInicio DateTime
+  fechaFin    DateTime
+  estadoId    String?
+  createdAt   DateTime @default(now())
+
+  cliente Cliente            @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  plan    Plan?              @relation(fields: [planId], references: [id])
+  estado  EstadoSuscripcion? @relation(fields: [estadoId], references: [id])
+
+  @@map("suscripciones")
+}
+
+// ───────────────────────────────────────────────
+//  2. MÓDULO DE USUARIOS, EMPLEADOS Y ROLES
+// ───────────────────────────────────────────────
+
+/// Roles del sistema (Dueño del sistema, Administrador, Usuario)
+model Rol {
+  id          String  @id @default(uuid())
+  nombreRol   String
+  descripcion String?
+
+  usuarioRoles UsuarioRol[]
+
+  @@map("roles")
+}
+
+/// Usuario con credenciales de acceso al sistema
+model Usuario {
+  id         String  @id @default(uuid())
+  clienteId  String? // null = Super Admin (Dueño del sistema)
+  correo     String
+  contrasena String  // Hash BCrypt o Argon2
+  activo     Boolean @default(true)
+
+  cliente  Cliente? @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  // Relaciones
+  usuarioRoles             UsuarioRol[]
+  empleado                 Empleado?
+  recaudos                 Recaudo[]
+  bitacoraObservaciones    BitacoraObservacion[]
+  reportSnapshotsCreated   ReportSnapshot[]
+  reportLinksCreated       ReportLink[]
+
+  @@unique([clienteId, correo])
+  @@map("usuarios")
+}
+
+/// Relación N:N entre usuarios y roles
+model UsuarioRol {
+  usuarioId String
+  rolId     String
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol     Rol     @relation(fields: [rolId], references: [id], onDelete: Cascade)
+
+  @@id([usuarioId, rolId])
+  @@map("usuario_roles")
+}
+
+/// Cargos / posiciones laborales
+model Cargo {
+  id          String  @id @default(uuid())
+  nombreCargo String
+  descripcion String?
+
+  empleados Empleado[]
+
+  @@map("cargos")
+}
+
+/// Empleados / personal administrativo del tenant
+model Empleado {
+  id              String   @id @default(uuid())
+  clienteId       String
+  usuarioId       String?  @unique // Vinculo opcional a sus credenciales
+  identificacion  String
+  nombres         String
+  apellidos       String
+  telefono        String?
+  cargoId         String?
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  cliente  Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  usuario  Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  cargo    Cargo?   @relation(fields: [cargoId], references: [id], onDelete: SetNull)
+
+  @@unique([clienteId, identificacion])
+  @@map("empleados")
+}
+
+// ───────────────────────────────────────────────
+//  3. MÓDULO CORE DE COBRANZAS
+// ───────────────────────────────────────────────
+
+/// Carteras / entidades que entregan cartera para gestión
+model Cartera {
+  id              String   @id @default(uuid())
+  clienteId       String
+  nombreEntidad   String
+  nit             String?
+  representante   String?
+  telefono        String?
+  correo          String?
+  observaciones   String?
+  logoUrl         String?
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  obligaciones Obligacion[]
+
+  // Reportes
+  reportConfigs   ReportConfig[]
+  reportSnapshots ReportSnapshot[]
+
+  @@index([clienteId])
+  @@map("carteras")
+}
+
+/// Tipos de identificación (CC, CE, NIT, PAP)
+model TipoIdentificacion {
+  id     String @id @default(uuid())
+  codigo String // CC, CE, NIT, PAP
+  nombre String
+
+  personas Persona[]
+
+  @@map("tipos_identificacion")
+}
+
+/// Personas (deudores, codeudores)
+model Persona {
+  id                    String @id @default(uuid())
+  clienteId             String
+  tipoIdentificacionId  String?
+  numeroIdentificacion  String
+  nombreCompleto        String
+
+  cliente            Cliente             @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipoIdentificacion TipoIdentificacion? @relation(fields: [tipoIdentificacionId], references: [id])
+
+  contactos          PersonaContacto[]
+  obligacionActores  ObligacionActor[]
+  notificaciones     Notificacion[]
+
+  @@unique([clienteId, tipoIdentificacionId, numeroIdentificacion])
+  @@index([clienteId])
+  @@map("personas")
+}
+
+/// Tipos de contacto (Teléfono, Correo, Celular)
+model TipoContacto {
+  id     String @id @default(uuid())
+  nombre String
+
+  contactos PersonaContacto[]
+
+  @@map("tipos_contacto")
+}
+
+/// Contactos de una persona
+model PersonaContacto {
+  id             String  @id @default(uuid())
+  personaId      String
+  tipoContactoId String?
+  valor          String
+  esPrincipal    Boolean @default(false)
+
+  persona      Persona       @relation(fields: [personaId], references: [id], onDelete: Cascade)
+  tipoContacto TipoContacto? @relation(fields: [tipoContactoId], references: [id])
+
+  @@map("personas_contactos")
+}
+
+/// Juzgados del tenant
+model Juzgado {
+  id        String @id @default(uuid())
+  clienteId String
+  nombre    String
+
+  cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  obligaciones Obligacion[]
+
+  @@index([clienteId])
+  @@map("juzgados")
+}
+
+/// Medidas cautelares (catálogo global)
+model MedidaCautelar {
+  id     String @id @default(uuid())
+  nombre String
+
+  obligaciones     Obligacion[]
+  historialMedidas HistorialMedida[]
+
+  @@map("medidas_cautelares")
+}
+
+/// Estados de obligación (catálogo global)
+model EstadoObligacion {
+  id     String @id @default(uuid())
+  nombre String
+  color  String? // Para el badge en la UI
+
+  obligaciones Obligacion[]
+
+  @@map("estados_obligacion")
+}
+
+/// Niveles de recuperación (catálogo global)
+model NivelRecuperacion {
+  id     String @id @default(uuid())
+  nombre String
+  color  String? // Para el badge
+
+  obligaciones Obligacion[]
+
+  @@map("niveles_recuperacion")
+}
+
+/// Tabla principal de obligaciones / créditos
+model Obligacion {
+  id                    String    @id @default(uuid())
+  clienteId             String
+  carteraId             String?
+  numeroCredito         String
+  numeroPagare          String?
+  saldoCapitalDemandado Decimal   @db.Decimal(15, 2)
+  departamentoId        String?
+  municipioId           String?
+
+  // Proceso Jurídico
+  fechaReparto                     DateTime? // intakeDate — extensión mantenida
+  fechaPresentacionDemanda         DateTime?
+  juzgadoId                        String?
+  radicado                         String?
+  medidaCautelarId                 String?
+  mandamientoPagoFecha             DateTime?
+  autoSeguirEjecucionFecha         DateTime?
+  liquidacionCreditoAprobadaFecha  DateTime?
+
+  // Estados
+  estadoObligacionId   String?
+  nivelRecuperacionId  String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  cliente           Cliente           @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  cartera           Cartera?          @relation(fields: [carteraId], references: [id])
+  departamento      Departamento?     @relation(fields: [departamentoId], references: [id])
+  municipio         Municipio?        @relation(fields: [municipioId], references: [id])
+  juzgado           Juzgado?          @relation(fields: [juzgadoId], references: [id])
+  medidaCautelar    MedidaCautelar?   @relation(fields: [medidaCautelarId], references: [id])
+  estadoObligacion  EstadoObligacion? @relation(fields: [estadoObligacionId], references: [id])
+  nivelRecuperacion NivelRecuperacion? @relation(fields: [nivelRecuperacionId], references: [id])
+
+  actores          ObligacionActor[]
+  historialMedidas HistorialMedida[]
+  notificaciones   Notificacion[]
+  recaudos         Recaudo[]
+  bitacora         BitacoraObservacion[]
+
+  @@index([clienteId])
+  @@index([carteraId])
+  @@index([clienteId, carteraId])
+  @@map("obligaciones")
+}
+
+/// Roles de actores en una obligación (Deudor Principal, Deudor Solidario, Codeudor)
+model RolActor {
+  id        String @id @default(uuid())
+  nombreRol String
+
+  obligacionActores ObligacionActor[]
+
+  @@map("roles_actores")
+}
+
+/// Tabla intermedia: asocia personas como actores de una obligación
+model ObligacionActor {
+  id            String @id @default(uuid())
+  obligacionId  String
+  personaId     String
+  rolActorId    String?
+
+  obligacion Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  persona    Persona    @relation(fields: [personaId], references: [id])
+  rolActor   RolActor?  @relation(fields: [rolActorId], references: [id])
+
+  @@unique([obligacionId, personaId, rolActorId])
+  @@map("obligacion_actores")
+}
+
+/// Historial de medidas cautelares
+model HistorialMedida {
+  id               String   @id @default(uuid())
+  obligacionId     String
+  medidaCautelarId String?
+  fechaEvento      DateTime
+  observacion      String?
+  createdAt        DateTime @default(now())
+
+  obligacion     Obligacion      @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  medidaCautelar MedidaCautelar? @relation(fields: [medidaCautelarId], references: [id])
+
+  @@map("historial_medidas")
+}
+
+/// Notificaciones procesales
+model Notificacion {
+  id                     String   @id @default(uuid())
+  obligacionId           String
+  destinatarioPersonaId  String?
+  fechaNotificacion      DateTime
+  observacion            String?
+  createdAt              DateTime @default(now())
+
+  obligacion            Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  destinatarioPersona   Persona?   @relation(fields: [destinatarioPersonaId], references: [id])
+
+  @@index([obligacionId])
+  @@map("notificaciones")
+}
+
+// ───────────────────────────────────────────────
+//  4. RECAUDOS Y BITÁCORAS
+// ───────────────────────────────────────────────
+
+/// Recaudos / abonos registrados en una obligación
+model Recaudo {
+  id            String   @id @default(uuid())
+  obligacionId  String
+  fechaAbonada  DateTime
+  monto         Decimal  @db.Decimal(15, 2)
+  usuarioId     String?  // Usuario que procesa el pago
+  createdAt     DateTime @default(now())
+
+  obligacion Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@index([obligacionId])
+  @@map("recaudos")
+}
+
+/// Bitácora de observaciones / seguimiento
+model BitacoraObservacion {
+  id            String   @id @default(uuid())
+  obligacionId  String
+  observacion   String
+  usuarioId     String?  // Asesor que registra
+  createdAt     DateTime @default(now())
+
+  obligacion Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@index([obligacionId])
+  @@map("bitacora_observaciones")
+}
+
+// ───────────────────────────────────────────────
+//  5. REPORTES (Extensión — no en SQL oficial)
+// ───────────────────────────────────────────────
+
+enum PeriodType {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  CUSTOM
+}
+
+/// Configuración de período de reporte
+model ReportConfig {
+  id             String     @id @default(uuid())
+  clienteId      String
+  carteraId      String?
+  periodType     PeriodType @default(QUARTERLY)
+  periodDays     Int?
+  nextReportDate DateTime?
+  hiddenColumns  Json?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  cliente  Cliente  @relation(fields: [clienteId], references: [id])
+  cartera  Cartera? @relation(fields: [carteraId], references: [id])
+
+  @@map("report_configs")
+}
+
+/// Snapshot de un reporte generado
+model ReportSnapshot {
+  id          String   @id @default(uuid())
+  clienteId   String
+  carteraId   String?
+  title       String
+  periodStart DateTime
+  periodEnd   DateTime
+  params      Json
+  createdById String
+  createdAt   DateTime @default(now())
+
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+  cartera   Cartera? @relation(fields: [carteraId], references: [id])
+  createdBy Usuario  @relation(fields: [createdById], references: [id])
+  links     ReportLink[]
+
+  @@index([clienteId])
+  @@map("report_snapshots")
+}
+
+/// Link temporal para compartir un reporte sin login
+model ReportLink {
+  id               String    @id @default(uuid())
+  clienteId        String
+  reportSnapshotId String
+  token            String    @unique
+  expiresAt        DateTime?
+  isActive         Boolean   @default(true)
+  viewCount        Int       @default(0)
+  createdById      String
+  createdAt        DateTime  @default(now())
+
+  cliente        Cliente        @relation(fields: [clienteId], references: [id])
+  reportSnapshot ReportSnapshot @relation(fields: [reportSnapshotId], references: [id])
+  createdBy      Usuario        @relation(fields: [createdById], references: [id])
+
+  @@index([token])
+  @@map("report_links")
+}

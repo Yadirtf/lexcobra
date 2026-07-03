@@ -1,0 +1,27 @@
+{
+  "name": "lexcobra",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f postgres",
+    "db:generate": "pnpm --filter @lexcobra/api run db:generate",
+    "db:migrate": "pnpm --filter @lexcobra/api run db:migrate",
+    "db:seed": "pnpm --filter @lexcobra/api run db:seed",
+    "db:studio": "pnpm --filter @lexcobra/api run db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
