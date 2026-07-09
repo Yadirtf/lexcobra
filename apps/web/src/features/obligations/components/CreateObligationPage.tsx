@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from '@tanstack/react-router';
-import { ChevronLeft, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronDown, ChevronUp, Plus, Save, Trash2, X, MapPin } from 'lucide-react';
 import { useCreateObligation } from '../api/obligations.js';
 import { usePortfolios } from '../../portfolios/api/portfolios.js';
 import { 
   useMunicipalities,
+  useDepartamentos,
   useJuzgados,
   useEstadosObligacion,
   useMedidasCautelares,
@@ -18,6 +19,7 @@ import { SearchableSelect } from '../../../shared/components/ui/SearchableSelect
 interface ContactEntry {
   tipoContactoId: string;
   valor: string;
+  error?: string;
 }
 
 interface PersonEntry {
@@ -34,6 +36,7 @@ export function CreateObligationPage() {
   const portfolio = portfolios?.find(p => p.id === portfolioId);
   
   // Catalogs
+  const { data: departamentos } = useDepartamentos();
   const { data: municipalities } = useMunicipalities();
   const { data: juzgados } = useJuzgados();
   const { data: estados } = useEstadosObligacion();
@@ -77,6 +80,38 @@ export function CreateObligationPage() {
     recoveryLevelId: '',
   });
 
+  // Estado local para departamento de la obligación (filtra municipios)
+  const [departamentoIdObligacion, setDepartamentoIdObligacion] = useState('');
+
+  // Estado para mini-modal de creación rápida de juzgado
+  const [quickJuzgadoModal, setQuickJuzgadoModal] = useState(false);
+  const [quickJuzgadoNombre, setQuickJuzgadoNombre] = useState('');
+  const [quickJuzgadoDepto, setQuickJuzgadoDepto] = useState('');
+  const [quickJuzgadoMunicipio, setQuickJuzgadoMunicipio] = useState('');
+
+  // Municipios filtrados por el departamento seleccionado (sección crédito)
+  const filteredMunicipalities = useMemo(
+    () =>
+      departamentoIdObligacion
+        ? (municipalities ?? []).filter((m) => m.departamentoId === departamentoIdObligacion)
+        : (municipalities ?? []),
+    [municipalities, departamentoIdObligacion],
+  );
+
+  // Municipios filtrados para el mini-modal del juzgado
+  const quickJuzgadoMunicipios = useMemo(
+    () =>
+      quickJuzgadoDepto
+        ? (municipalities ?? []).filter((m) => m.departamentoId === quickJuzgadoDepto)
+        : [],
+    [municipalities, quickJuzgadoDepto],
+  );
+
+  const handleDepartamentoObligacionChange = (value: string) => {
+    setDepartamentoIdObligacion(value);
+    setFormData((f) => ({ ...f, municipalityId: '' }));
+  };
+
   const handlePersonChange = (type: 'debtors' | 'codebtors', index: number, field: keyof PersonEntry, value: string) => {
     const list = type === 'debtors' ? [...debtors] : [...coDebtors];
     list[index] = { ...list[index], [field]: value };
@@ -95,6 +130,48 @@ export function CreateObligationPage() {
     type === 'debtors' ? setDebtors(list) : setCoDebtors(list);
   };
 
+  // ── Validación de contactos ─────────────────────────────────────
+  const validateContactValue = (
+    tipoContactoId: string,
+    valor: string,
+  ): string => {
+    if (!valor.trim()) return '';
+
+    const tipoNombre = tiposContacto
+      ?.find((t) => t.id === tipoContactoId)
+      ?.nombre?.toLowerCase() ?? '';
+
+    if (tipoNombre.includes('celular') || tipoNombre.includes('móvil') || tipoNombre.includes('movil')) {
+      // Celular colombiano: 10 dígitos, comienza con 3
+      const clean = valor.replace(/\s/g, '');
+      if (!/^3\d{9}$/.test(clean)) {
+        return 'Celular inválido: debe tener 10 dígitos y comenzar con 3 (ej. 3001234567)';
+      }
+    } else if (tipoNombre.includes('tel') || tipoNombre.includes('fijo') || tipoNombre.includes('phone')) {
+      // Teléfono fijo Colombia: 6 + área(2) + local(7) = 10 dígitos (ej. 6082345678)
+      // O formato largo: 60 + área(3) + local(7) = 12 dígitos
+      const clean = valor.replace(/[\s().\-]/g, '');
+      const isLong  = /^60\d{10}$/.test(clean);   // 60 + area(3) + local(7) = 12
+      const isShort = /^6\d{9}$/.test(clean);     // 6 + area(2) + local(7) = 10 (ej. 6082345678)
+      if (!isLong && !isShort) {
+        return 'Teléfono fijo inválido: debe tener el indicativo regional (ej. 6082345678 para Putumayo)';
+      }
+    } else if (tipoNombre.includes('correo') || tipoNombre.includes('email') || tipoNombre.includes('mail')) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(valor.trim())) {
+        return 'Correo electrónico inválido (ej. nombre@empresa.com)';
+      }
+    }
+
+    return '';
+  };
+
+  const hasContactErrors = (): boolean => {
+    const allPersons = [...debtors, ...coDebtors];
+    return allPersons.some((p) =>
+      p.contacts.some((c) => !!c.error)
+    );
+  };
+
   const addContact = (type: 'debtors' | 'codebtors', personIndex: number) => {
     const list = type === 'debtors' ? [...debtors] : [...coDebtors];
     list[personIndex].contacts.push({ tipoContactoId: '', valor: '' });
@@ -103,7 +180,16 @@ export function CreateObligationPage() {
 
   const handleContactChange = (type: 'debtors' | 'codebtors', personIndex: number, contactIndex: number, field: keyof ContactEntry, value: string) => {
     const list = type === 'debtors' ? [...debtors] : [...coDebtors];
-    list[personIndex].contacts[contactIndex] = { ...list[personIndex].contacts[contactIndex], [field]: value };
+    const contact = { ...list[personIndex].contacts[contactIndex], [field]: value };
+
+    // Validate on every change
+    if (field === 'valor' || field === 'tipoContactoId') {
+      const tipoId = field === 'tipoContactoId' ? value : contact.tipoContactoId;
+      const val   = field === 'valor'           ? value : contact.valor;
+      contact.error = validateContactValue(tipoId, val);
+    }
+
+    list[personIndex].contacts[contactIndex] = contact;
     type === 'debtors' ? setDebtors(list) : setCoDebtors(list);
   };
 
@@ -137,12 +223,12 @@ export function CreateObligationPage() {
         debtors: debtors.filter(d => d.documentId && d.fullName).map(d => ({
           ...d,
           tipoIdentificacionId: d.tipoIdentificacionId || undefined,
-          contacts: d.contacts.filter(c => c.tipoContactoId && c.valor).map(c => ({ ...c, esPrincipal: false }))
+          contacts: d.contacts.filter(c => c.tipoContactoId && c.valor).map(({ error: _e, ...c }) => ({ ...c, esPrincipal: false }))
         })),
         coDebtors: coDebtors.filter(d => d.documentId && d.fullName).map(d => ({
           ...d,
           tipoIdentificacionId: d.tipoIdentificacionId || undefined,
-          contacts: d.contacts.filter(c => c.tipoContactoId && c.valor).map(c => ({ ...c, esPrincipal: false }))
+          contacts: d.contacts.filter(c => c.tipoContactoId && c.valor).map(({ error: _e, ...c }) => ({ ...c, esPrincipal: false }))
         })),
         notifications: [],
       };
@@ -193,23 +279,51 @@ export function CreateObligationPage() {
             <div style={{ paddingLeft: '1rem', borderLeft: '2px solid var(--border)' }}>
               <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: 'var(--text-3)' }}>Contactos de {person.fullName || 'esta persona'}:</p>
               {person.contacts.map((contact, cIndex) => (
-                <div key={cIndex} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
-                  <select 
-                    className="form-input" style={{ width: '150px' }}
-                    value={contact.tipoContactoId} 
-                    onChange={e => handleContactChange(type, index, cIndex, 'tipoContactoId', e.target.value)}
-                  >
-                    <option value="">Tipo...</option>
-                    {tiposContacto?.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-                  </select>
-                  <input 
-                    type="text" className="form-input" style={{ flex: 1 }} placeholder="ej. 3001234567 o email@..."
-                    value={contact.valor} 
-                    onChange={e => handleContactChange(type, index, cIndex, 'valor', e.target.value)}
-                  />
-                  <button type="button" onClick={() => removeContact(type, index, cIndex)} style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', padding: '0.25rem' }}>
-                    <Trash2 size={16} />
-                  </button>
+                <div key={cIndex} style={{ marginBottom: '0.75rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <select 
+                      className="form-input" style={{ width: '150px', flexShrink: 0 }}
+                      value={contact.tipoContactoId} 
+                      onChange={e => handleContactChange(type, index, cIndex, 'tipoContactoId', e.target.value)}
+                    >
+                      <option value="">Tipo...</option>
+                      {tiposContacto?.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
+                    </select>
+                    <input 
+                      type={(() => {
+                        const n = tiposContacto?.find(t => t.id === contact.tipoContactoId)?.nombre?.toLowerCase() ?? '';
+                        if (n.includes('correo') || n.includes('email') || n.includes('mail')) return 'email';
+                        if (n.includes('celular') || n.includes('movil') || n.includes('móvil') || n.includes('tel') || n.includes('fijo')) return 'tel';
+                        return 'text';
+                      })()}
+                      className={`form-input${contact.error ? ' input-error' : ''}`}
+                      style={{ flex: 1, borderColor: contact.error ? 'var(--danger)' : undefined }}
+                      placeholder={
+                        (() => {
+                          const n = tiposContacto?.find(t => t.id === contact.tipoContactoId)?.nombre?.toLowerCase() ?? '';
+                          if (n.includes('celular') || n.includes('movil') || n.includes('móvil')) return 'ej. 3001234567';
+                          if (n.includes('tel') || n.includes('fijo')) return 'ej. 6082345678';
+                          if (n.includes('correo') || n.includes('email') || n.includes('mail')) return 'ej. nombre@empresa.com';
+                          return 'Valor del contacto';
+                        })()
+                      }
+                      value={contact.valor} 
+                      onChange={e => handleContactChange(type, index, cIndex, 'valor', e.target.value)}
+                    />
+                    <button type="button" onClick={() => removeContact(type, index, cIndex)} style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', padding: '0.25rem', flexShrink: 0 }}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  {contact.error && (
+                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.78rem', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.3rem', paddingLeft: '162px' }}>
+                      <svg viewBox="0 0 24 24" fill="none" style={{ width: 12, height: 12, flexShrink: 0 }}>
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                        <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        <circle cx="12" cy="16" r="0.5" fill="currentColor" stroke="currentColor" strokeWidth="1.5"/>
+                      </svg>
+                      {contact.error}
+                    </p>
+                  )}
                 </div>
               ))}
               <button type="button" onClick={() => addContact(type, index)} style={{ background: 'transparent', border: 'none', color: 'var(--accent)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.5rem' }}>
@@ -226,7 +340,7 @@ export function CreateObligationPage() {
   };
 
   return (
-    <div className="create-obligation-page" style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '4rem' }}>
+    <div className="create-obligation-page" style={{ maxWidth: '900px', margin: '0 auto', paddingBottom: '20rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
         <Link to="/portfolios/$portfolioId" params={{ portfolioId }} style={{ color: 'var(--text-3)', textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
           <ChevronLeft size={16} /> Volver a {portfolio?.nombreEntidad || 'Cartera'}
@@ -240,7 +354,7 @@ export function CreateObligationPage() {
 
       <form onSubmit={handleSubmit} noValidate>
         {/* SECCIÓN 1: DEUDORES */}
-        <div className="form-card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '1.5rem', overflow: 'hidden' }}>
+        <div className="form-card" style={{ position: 'relative', zIndex: 40, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '1.5rem' }}>
           <div 
             className="form-section-header" 
             onClick={() => toggleSection('debtors')}
@@ -257,7 +371,7 @@ export function CreateObligationPage() {
         </div>
 
         {/* SECCIÓN 2: CODEUDORES */}
-        <div className="form-card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '1.5rem', overflow: 'hidden' }}>
+        <div className="form-card" style={{ position: 'relative', zIndex: 30, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '1.5rem' }}>
           <div 
             className="form-section-header" 
             onClick={() => toggleSection('codebtors')}
@@ -274,7 +388,7 @@ export function CreateObligationPage() {
         </div>
 
         {/* SECCIÓN 3: DATOS CRÉDITO */}
-        <div className="form-card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '1.5rem', overflow: 'hidden' }}>
+        <div className="form-card" style={{ position: 'relative', zIndex: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '1.5rem' }}>
           <div 
             className="form-section-header" 
             onClick={() => toggleSection('credit')}
@@ -290,6 +404,26 @@ export function CreateObligationPage() {
           {openSections.credit && (
             <div className="form-section-body" style={{ padding: '1.5rem', borderTop: '1px solid var(--border)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                {/* Departamento — filtra municipios */}
+                <div className="form-group">
+                  <label className="form-label">Departamento</label>
+                  <SearchableSelect
+                    options={(departamentos ?? []).map((d) => ({ value: d.id, label: d.nombre }))}
+                    value={departamentoIdObligacion}
+                    onChange={handleDepartamentoObligacionChange}
+                    placeholder="Buscar departamento..."
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Municipio *</label>
+                  <SearchableSelect
+                    options={filteredMunicipalities.map((m) => ({ value: m.id, label: m.nombre }))}
+                    value={formData.municipalityId}
+                    onChange={(value) => setFormData({ ...formData, municipalityId: value })}
+                    placeholder={departamentoIdObligacion ? 'Buscar municipio...' : 'Seleccione depto. primero'}
+                    disabled={!departamentoIdObligacion}
+                  />
+                </div>
                 <div className="form-group">
                   <label className="form-label">Nro. Crédito *</label>
                   <input type="text" className="form-input" required
@@ -305,27 +439,13 @@ export function CreateObligationPage() {
                   <input type="number" step="0.01" className="form-input" required
                     value={formData.capitalBalance} onChange={e => setFormData({...formData, capitalBalance: e.target.value})} />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Municipio *</label>
-                  <select 
-                    className="form-input" 
-                    required
-                    value={formData.municipalityId} 
-                    onChange={e => setFormData({...formData, municipalityId: e.target.value})}
-                  >
-                    <option value="">Seleccione un municipio</option>
-                    {municipalities?.map(m => (
-                      <option key={m.id} value={m.id}>{m.nombre}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
             </div>
           )}
         </div>
 
         {/* SECCIÓN 4: PROCESO JURÍDICO */}
-        <div className="form-card" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '2.5rem', overflow: 'hidden' }}>
+        <div className="form-card" style={{ position: 'relative', zIndex: 10, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '2.5rem' }}>
           <div 
             className="form-section-header" 
             onClick={() => toggleSection('process')}
@@ -364,15 +484,81 @@ export function CreateObligationPage() {
                     placeholder="Buscar juzgado..."
                     allowCreate
                     isCreating={isCreatingJuzgado}
-                    onCreate={async (nombre) => {
-                      try {
-                        const newJuzgado = await createJuzgado(nombre);
-                        setFormData({...formData, courtId: newJuzgado.id});
-                      } catch (error) {
-                        console.error('Error al crear juzgado', error);
-                      }
+                    onCreate={async () => {
+                      // Abre el mini-modal en vez de crear directamente
+                      setQuickJuzgadoNombre('');
+                      setQuickJuzgadoDepto('');
+                      setQuickJuzgadoMunicipio('');
+                      setQuickJuzgadoModal(true);
                     }}
                   />
+                  {/* Mini-modal creación rápida de juzgado */}
+                  {quickJuzgadoModal && (
+                    <div className="modal-overlay" style={{ zIndex: 10000 }}>
+                      <div className="modal" style={{ maxWidth: '460px' }}>
+                        <div className="modal-header">
+                          <h3 className="modal-title">Crear nuevo juzgado</h3>
+                          <button className="icon-btn" onClick={() => setQuickJuzgadoModal(false)}><X size={18} /></button>
+                        </div>
+                        <div className="modal-body">
+                          <div className="form-group">
+                            <label className="form-label">Nombre *</label>
+                            <input type="text" className="form-input" autoFocus
+                              placeholder="ej. JUZGADO PRIMERO CIVIL DEL CIRCUITO"
+                              value={quickJuzgadoNombre}
+                              onChange={(e) => setQuickJuzgadoNombre(e.target.value.toUpperCase())}
+                            />
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', margin: '0.25rem 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <MapPin size={13} /> Ubicación (opcional)
+                          </p>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                            <div className="form-group">
+                              <label className="form-label">Departamento</label>
+                              <SearchableSelect
+                                options={(departamentos ?? []).map((d) => ({ value: d.id, label: d.nombre }))}
+                                value={quickJuzgadoDepto}
+                                onChange={(v) => { setQuickJuzgadoDepto(v); setQuickJuzgadoMunicipio(''); }}
+                                placeholder="Buscar..."
+                              />
+                            </div>
+                            <div className="form-group">
+                              <label className="form-label">Municipio</label>
+                              <SearchableSelect
+                                options={quickJuzgadoMunicipios.map((m) => ({ value: m.id, label: m.nombre }))}
+                                value={quickJuzgadoMunicipio}
+                                onChange={(v) => setQuickJuzgadoMunicipio(v)}
+                                placeholder={quickJuzgadoDepto ? 'Buscar...' : 'Seleccione depto.'}
+                                disabled={!quickJuzgadoDepto}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="modal-footer" style={{ marginTop: 0 }}>
+                          <button className="btn-secondary" onClick={() => setQuickJuzgadoModal(false)}>Cancelar</button>
+                          <button
+                            className="btn-primary"
+                            disabled={!quickJuzgadoNombre.trim() || isCreatingJuzgado}
+                            onClick={async () => {
+                              try {
+                                const newJuzgado = await createJuzgado({
+                                  nombre: quickJuzgadoNombre,
+                                  departamentoId: quickJuzgadoDepto || undefined,
+                                  municipioId: quickJuzgadoMunicipio || undefined,
+                                });
+                                setFormData((f) => ({ ...f, courtId: newJuzgado.id }));
+                                setQuickJuzgadoModal(false);
+                              } catch (err) {
+                                console.error('Error al crear juzgado', err);
+                              }
+                            }}
+                          >
+                            {isCreatingJuzgado ? 'Creando...' : <><Plus size={14} /> Crear Juzgado</>}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Medida Cautelar</label>
@@ -424,7 +610,7 @@ export function CreateObligationPage() {
           <button type="button" className="btn-secondary" onClick={() => navigate({ to: '/portfolios/$portfolioId', params: { portfolioId } })}>
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={isPending || !formData.creditNumber || !formData.capitalBalance || !formData.municipalityId || !debtors[0]?.documentId}>
+          <button type="submit" className="btn-primary" disabled={isPending || hasContactErrors() || !formData.creditNumber || !formData.capitalBalance || !formData.municipalityId || !debtors[0]?.documentId}>
             {isPending ? 'Guardando...' : <><Save size={16} /> Crear Obligación</>}
           </button>
         </div>

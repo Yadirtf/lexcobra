@@ -1,5 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router';
-import { LayoutDashboard, Briefcase, FileText, Scale, BarChart3, Settings, Users, CreditCard, Building2, X } from 'lucide-react';
+import { LayoutDashboard, Briefcase, FileText, Scale, BarChart3, Settings, Users, CreditCard, Building2, X, MapPin } from 'lucide-react';
 import { useAuth } from '../../../features/auth/hooks/useAuth.js';
 import './Layout.css';
 
@@ -18,6 +18,7 @@ export function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     { name: 'Casas de Cobranza', path: '/admin/clientes', icon: Building2 },
     { name: 'Planes & Facturación', path: '/admin/planes', icon: CreditCard },
     { name: 'Catálogos Globales', path: '/admin/catalogos', icon: Settings },
+    { name: 'Ubicaciones (Colombia)', path: '/admin/ubicaciones', icon: MapPin },
     { name: 'Usuarios Internos', path: '/admin/usuarios', icon: Users },
   ];
 

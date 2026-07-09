@@ -3,6 +3,8 @@
 //  Crea: Catálogos globales + Super Admin
 // ═══════════════════════════════════════════════════════════════
 
+import fs from 'fs';
+import path from 'path';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -27,34 +29,47 @@ async function main() {
     return existing;
   }
 
-  // ── 0. MÓDULO GEOGRÁFICO ─────────────────────────────────────
-  const putumayo = await createIfNotExists(
-    prisma.departamento,
-    { nombre: 'Putumayo' },
-    { nombre: 'Putumayo' }
-  );
+  // ── 0. MÓDULO GEOGRÁFICO (Carga desde colombia.json) ───────────
+  try {
+    // Ruta al JSON descargado (asumiendo que el comando se corre desde apps/api)
+    const colombiaDataPath = path.join(process.cwd(), 'prisma/data/colombia.json');
+    if (fs.existsSync(colombiaDataPath)) {
+      const colombiaData = JSON.parse(fs.readFileSync(colombiaDataPath, 'utf8'));
+      
+      console.log('Cargando Departamentos y Municipios desde colombia.json...');
+      
+      let deptCount = 0;
+      let munCount = 0;
 
-  const municipiosData = [
-    'Mocoa', 'Puerto Asís', 'Villagarzón', 'Puerto Caicedo',
-    'Orito', 'San Francisco', 'Sibundoy', 'Colón',
-    'Santiago', 'San Miguel', 'Valle del Guamuez',
-    'Puerto Guzmán', 'Leguízamo',
-  ];
+      for (const item of colombiaData) {
+        // 1. Crear o encontrar el Departamento
+        const depto = await createIfNotExists(
+          prisma.departamento,
+          { nombre: item.departamento },
+          { nombre: item.departamento }
+        );
+        
+        if (depto) deptCount++;
 
-  let municipiosCreados = 0;
-  for (const mun of municipiosData) {
-    const existingMun = await prisma.municipio.findFirst({
-      where: { departamentoId: putumayo.id, nombre: mun },
-    });
-    if (!existingMun) {
-      await prisma.municipio.create({
-        data: { departamentoId: putumayo.id, nombre: mun },
-      });
-      municipiosCreados++;
+        // 2. Crear los Municipios para este departamento
+        for (const ciudad of item.ciudades) {
+          const existingMun = await prisma.municipio.findFirst({
+            where: { departamentoId: depto.id, nombre: ciudad },
+          });
+          if (!existingMun) {
+            await prisma.municipio.create({
+              data: { departamentoId: depto.id, nombre: ciudad },
+            });
+            munCount++;
+          }
+        }
+      }
+      console.log(`✅ Carga geográfica exitosa: ${deptCount} Departamentos y ${munCount} nuevos Municipios.`);
+    } else {
+      console.warn('⚠️ No se encontró colombia.json en apps/api/prisma/data/. Se omite carga geográfica completa.');
     }
-  }
-  if (municipiosCreados > 0) {
-    console.log(`✅ ${municipiosCreados} municipios de Putumayo creados`);
+  } catch (err) {
+    console.error('Error cargando módulo geográfico desde JSON:', err);
   }
 
   // ── 1. PLANES DE SUSCRIPCIÓN ─────────────────────────────────

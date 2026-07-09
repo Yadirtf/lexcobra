@@ -10,7 +10,9 @@ import { TenantsListPage } from '../features/admin/components/TenantsListPage.js
 import { AdminPlansPage } from '../features/admin/components/AdminPlansPage.js';
 import { AdminCatalogsPage } from '../features/admin/components/AdminCatalogsPage.js';
 import { AdminUsersPage } from '../features/admin/components/AdminUsersPage.js';
+import { AdminLocationsPage } from '../features/admin/components/AdminLocationsPage.js';
 import { EmployeesListPage } from '../features/employees/components/EmployeesListPage.js';
+import { CourtsPage } from '../features/courts/components/CourtsPage.js';
 
 // Root route
 const rootRoute = createRootRoute();
@@ -66,7 +68,7 @@ const PlaceholderPage = ({ title }: { title: string }) => (
 );
 
 const obligationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/obligations', component: () => <PlaceholderPage title="Obligaciones" /> });
-const courtsRoute = createRoute({ getParentRoute: () => appRoute, path: '/courts', component: () => <PlaceholderPage title="Juzgados" /> });
+const courtsRoute = createRoute({ getParentRoute: () => appRoute, path: '/courts', component: CourtsPage });
 const reportsRoute = createRoute({ getParentRoute: () => appRoute, path: '/reports', component: () => <PlaceholderPage title="Reportes" /> });
 const catalogsRoute = createRoute({ getParentRoute: () => appRoute, path: '/catalogs', component: () => <PlaceholderPage title="Catálogos" /> });
 
@@ -94,6 +96,7 @@ const adminTenantsRoute = createRoute({ getParentRoute: () => adminRoute, path: 
 const adminPlansRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/planes', component: AdminPlansPage });
 const adminCatalogsRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/catalogos', component: AdminCatalogsPage });
 const adminUsersRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/usuarios', component: AdminUsersPage });
+const adminLocationsRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/ubicaciones', component: AdminLocationsPage });
 
 // Login route (public)
 const loginRoute = createRoute({
@@ -130,6 +133,7 @@ const routeTree = rootRoute.addChildren([
       adminPlansRoute,
       adminCatalogsRoute,
       adminUsersRoute,
+      adminLocationsRoute,
     ]),
   ]),
 ]);

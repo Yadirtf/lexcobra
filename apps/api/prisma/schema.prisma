@@ -22,9 +22,10 @@ model Departamento {
   id     String @id @default(uuid())
   nombre String
 
-  municipios   Municipio[]
-  clientes     Cliente[]
-  obligaciones Obligacion[]
+  municipios          Municipio[]
+  clientes            Cliente[]
+  obligaciones        Obligacion[]
+  informacionesJuzgado InformacionJuzgado[]
 
   @@map("departamentos")
 }
@@ -38,6 +39,7 @@ model Municipio {
   departamento Departamento   @relation(fields: [departamentoId], references: [id])
   clientes     Cliente[]
   obligaciones Obligacion[]
+  informacionesJuzgado InformacionJuzgado[]
 
   @@unique([departamentoId, nombre])
   @@map("municipios")
@@ -310,9 +312,28 @@ model Juzgado {
 
   cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   obligaciones Obligacion[]
+  informacion  InformacionJuzgado?
 
   @@index([clienteId])
   @@map("juzgados")
+}
+
+/// Información adicional de un juzgado (ubicación geográfica y contacto)
+/// Tabla separada para no sobrecargar la entidad principal
+model InformacionJuzgado {
+  id             String  @id @default(uuid())
+  juzgadoId      String  @unique
+  departamentoId String?
+  municipioId    String?
+  direccion      String?
+  telefono       String?
+  correo         String?
+
+  juzgado      Juzgado       @relation(fields: [juzgadoId], references: [id], onDelete: Cascade)
+  departamento Departamento? @relation(fields: [departamentoId], references: [id])
+  municipio    Municipio?    @relation(fields: [municipioId], references: [id])
+
+  @@map("informacion_juzgados")
 }
 
 /// Medidas cautelares (catálogo global)

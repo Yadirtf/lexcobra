@@ -159,6 +159,19 @@ CREATE TABLE juzgados (
     nombre VARCHAR(150) NOT NULL
 );
 
+-- Tabla complementaria: ubicación y contacto de un juzgado
+-- Separada para no sobrecargar la entidad principal.
+-- departamento y municipio son los únicos campos requeridos por ahora.
+CREATE TABLE informacion_juzgados (
+    id SERIAL PRIMARY KEY,
+    juzgado_id INT UNIQUE NOT NULL REFERENCES juzgados(id) ON DELETE CASCADE,
+    departamento_id INT REFERENCES departamentos(id),
+    municipio_id INT REFERENCES municipios(id),
+    direccion VARCHAR(200),
+    telefono VARCHAR(20),
+    correo VARCHAR(100)
+);
+
 CREATE TABLE medidas_cautelares (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL
