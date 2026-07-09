@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, Link } from '@tanstack/react-router';
 import { ChevronLeft, ChevronDown, ChevronUp, Plus, Save, Trash2, X, MapPin } from 'lucide-react';
 import { useCreateObligation } from '../api/obligations.js';
@@ -484,81 +485,14 @@ export function CreateObligationPage() {
                     placeholder="Buscar juzgado..."
                     allowCreate
                     isCreating={isCreatingJuzgado}
-                    onCreate={async () => {
-                      // Abre el mini-modal en vez de crear directamente
-                      setQuickJuzgadoNombre('');
+                    onCreate={(typedValue) => {
+                      // Abre el mini-modal pre-rellenando el nombre que escribió el usuario
+                      setQuickJuzgadoNombre(typedValue.toUpperCase());
                       setQuickJuzgadoDepto('');
                       setQuickJuzgadoMunicipio('');
                       setQuickJuzgadoModal(true);
                     }}
                   />
-                  {/* Mini-modal creación rápida de juzgado */}
-                  {quickJuzgadoModal && (
-                    <div className="modal-overlay" style={{ zIndex: 10000 }}>
-                      <div className="modal" style={{ maxWidth: '460px' }}>
-                        <div className="modal-header">
-                          <h3 className="modal-title">Crear nuevo juzgado</h3>
-                          <button className="icon-btn" onClick={() => setQuickJuzgadoModal(false)}><X size={18} /></button>
-                        </div>
-                        <div className="modal-body">
-                          <div className="form-group">
-                            <label className="form-label">Nombre *</label>
-                            <input type="text" className="form-input" autoFocus
-                              placeholder="ej. JUZGADO PRIMERO CIVIL DEL CIRCUITO"
-                              value={quickJuzgadoNombre}
-                              onChange={(e) => setQuickJuzgadoNombre(e.target.value.toUpperCase())}
-                            />
-                          </div>
-                          <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', margin: '0.25rem 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <MapPin size={13} /> Ubicación (opcional)
-                          </p>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                            <div className="form-group">
-                              <label className="form-label">Departamento</label>
-                              <SearchableSelect
-                                options={(departamentos ?? []).map((d) => ({ value: d.id, label: d.nombre }))}
-                                value={quickJuzgadoDepto}
-                                onChange={(v) => { setQuickJuzgadoDepto(v); setQuickJuzgadoMunicipio(''); }}
-                                placeholder="Buscar..."
-                              />
-                            </div>
-                            <div className="form-group">
-                              <label className="form-label">Municipio</label>
-                              <SearchableSelect
-                                options={quickJuzgadoMunicipios.map((m) => ({ value: m.id, label: m.nombre }))}
-                                value={quickJuzgadoMunicipio}
-                                onChange={(v) => setQuickJuzgadoMunicipio(v)}
-                                placeholder={quickJuzgadoDepto ? 'Buscar...' : 'Seleccione depto.'}
-                                disabled={!quickJuzgadoDepto}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        <div className="modal-footer" style={{ marginTop: 0 }}>
-                          <button className="btn-secondary" onClick={() => setQuickJuzgadoModal(false)}>Cancelar</button>
-                          <button
-                            className="btn-primary"
-                            disabled={!quickJuzgadoNombre.trim() || isCreatingJuzgado}
-                            onClick={async () => {
-                              try {
-                                const newJuzgado = await createJuzgado({
-                                  nombre: quickJuzgadoNombre,
-                                  departamentoId: quickJuzgadoDepto || undefined,
-                                  municipioId: quickJuzgadoMunicipio || undefined,
-                                });
-                                setFormData((f) => ({ ...f, courtId: newJuzgado.id }));
-                                setQuickJuzgadoModal(false);
-                              } catch (err) {
-                                console.error('Error al crear juzgado', err);
-                              }
-                            }}
-                          >
-                            {isCreatingJuzgado ? 'Creando...' : <><Plus size={14} /> Crear Juzgado</>}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Medida Cautelar</label>
@@ -615,6 +549,80 @@ export function CreateObligationPage() {
           </button>
         </div>
       </form>
+
+      {/* Mini-modal creación rápida de juzgado — fuera del form para evitar bugs de z-index */}
+      {typeof document !== 'undefined' && createPortal(
+        quickJuzgadoModal ? (
+          <div className="modal-overlay" style={{ zIndex: 10000 }}>
+            <div className="modal" style={{ maxWidth: '460px' }}>
+              <div className="modal-header">
+                <h3 className="modal-title">Crear nuevo juzgado</h3>
+                <button className="icon-btn" onClick={() => setQuickJuzgadoModal(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body">
+                <div className="form-group">
+                  <label className="form-label">Nombre *</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    autoFocus
+                    placeholder="ej. JUZGADO PRIMERO CIVIL DEL CIRCUITO"
+                    value={quickJuzgadoNombre}
+                    onChange={(e) => setQuickJuzgadoNombre(e.target.value.toUpperCase())}
+                  />
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-3)', margin: '0.25rem 0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <MapPin size={13} /> Ubicación (opcional)
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Departamento</label>
+                    <SearchableSelect
+                      options={(departamentos ?? []).map((d) => ({ value: d.id, label: d.nombre }))}
+                      value={quickJuzgadoDepto}
+                      onChange={(v) => { setQuickJuzgadoDepto(v); setQuickJuzgadoMunicipio(''); }}
+                      placeholder="Buscar..."
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Municipio</label>
+                    <SearchableSelect
+                      options={quickJuzgadoMunicipios.map((m) => ({ value: m.id, label: m.nombre }))}
+                      value={quickJuzgadoMunicipio}
+                      onChange={(v) => setQuickJuzgadoMunicipio(v)}
+                      placeholder={quickJuzgadoDepto ? 'Buscar...' : 'Seleccione depto.'}
+                      disabled={!quickJuzgadoDepto}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer" style={{ marginTop: 0 }}>
+                <button className="btn-secondary" onClick={() => setQuickJuzgadoModal(false)}>Cancelar</button>
+                <button
+                  className="btn-primary"
+                  disabled={!quickJuzgadoNombre.trim() || isCreatingJuzgado}
+                  onClick={async () => {
+                    try {
+                      const newJuzgado = await createJuzgado({
+                        nombre: quickJuzgadoNombre,
+                        departamentoId: quickJuzgadoDepto || undefined,
+                        municipioId: quickJuzgadoMunicipio || undefined,
+                      });
+                      setFormData((f) => ({ ...f, courtId: newJuzgado.id }));
+                      setQuickJuzgadoModal(false);
+                    } catch (err) {
+                      console.error('Error al crear juzgado', err);
+                    }
+                  }}
+                >
+                  {isCreatingJuzgado ? 'Creando...' : <><Plus size={14} /> Crear Juzgado</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null,
+        document.body
+      )}
     </div>
   );
 }
