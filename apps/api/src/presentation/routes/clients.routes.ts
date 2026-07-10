@@ -26,6 +26,7 @@ export async function clientsRoutes(fastify: FastifyInstance) {
     try {
       const clients = await prisma.cliente.findMany({
         include: {
+          estado: true,
           suscripciones: {
             include: { plan: true },
             orderBy: { fechaFin: 'desc' },

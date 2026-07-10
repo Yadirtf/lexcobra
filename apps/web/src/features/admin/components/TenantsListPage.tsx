@@ -152,7 +152,6 @@ export function TenantsListPage() {
             <tbody>
               {tenants?.map((tenant) => {
                 const sub = tenant.suscripciones[0];
-                const isActive = sub && new Date(sub.fechaFin) >= new Date();
                 return (
                   <tr key={tenant.id}>
                     <td>{tenant.nit}</td>
@@ -169,9 +168,17 @@ export function TenantsListPage() {
                       )}
                     </td>
                     <td>
-                      <span className={`status-badge ${isActive ? 'status-active' : 'status-inactive'}`}>
-                        {tenant.estado?.estado === 'Inactivo' ? 'Inactivo (Supendido)' : isActive ? 'Vigente' : 'Vencida'}
-                      </span>
+                      {(() => {
+                        const isSuspended = tenant.estado?.estado === 'Inactivo';
+                        const isVigente = sub && new Date(sub.fechaFin) >= new Date();
+                        let badgeClass = 'status-inactive';
+                        let badgeText = 'Inactivo (Suspendido)';
+                        if (!isSuspended) {
+                          badgeClass = isVigente ? 'status-active' : 'status-inactive';
+                          badgeText = isVigente ? 'Vigente' : 'Vencida';
+                        }
+                        return <span className={`status-badge ${badgeClass}`}>{badgeText}</span>;
+                      })()}
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
