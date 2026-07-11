@@ -108,29 +108,145 @@ export class PrismaObligationRepository implements IObligationRepository {
     });
   }
 
-  async update(clienteId: string, id: string, data: UpdateObligationInput): Promise<Obligation> {
-    const obligacion = await this.prisma.obligacion.update({
-      where: { id },
-      data: {
-        ...(data.creditNumber && { numeroCredito: data.creditNumber }),
-        ...(data.capitalBalance !== undefined && { saldoCapitalDemandado: data.capitalBalance }),
-        ...(data.statusId !== undefined && { estadoObligacionId: data.statusId }),
-        ...(data.recoveryLevelId !== undefined && { nivelRecuperacionId: data.recoveryLevelId }),
-        ...(data.docketNumber !== undefined && { radicado: data.docketNumber }),
-        ...(data.courtId !== undefined && { juzgadoId: data.courtId }),
-        ...(data.precautionaryMeasureId !== undefined && { medidaCautelarId: data.precautionaryMeasureId }),
-      },
-      include: {
-        actores: { include: { persona: true, rolActor: true } },
-        estadoObligacion: true,
-        juzgado: true,
-        municipio: true,
-        medidaCautelar: true,
-        nivelRecuperacion: true,
-      },
-    });
+  async update(
+    clienteId: string, 
+    id: string, 
+    data: UpdateObligationInput,
+    auditoriaCambios?: Array<{ campoModificado: string, valorAnterior: string | null, valorNuevo: string | null }>,
+    usuarioId?: string | null
+  ): Promise<Obligation> {
+    return this.prisma.$transaction(async (tx) => {
+      
+      // Update Obligation
+      const obligacion = await tx.obligacion.update({
+        where: { id },
+        data: {
+          ...(data.creditNumber && { numeroCredito: data.creditNumber }),
+          ...(data.capitalBalance !== undefined && { saldoCapitalDemandado: data.capitalBalance }),
+          ...(data.statusId !== undefined && { estadoObligacionId: data.statusId }),
+          ...(data.recoveryLevelId !== undefined && { nivelRecuperacionId: data.recoveryLevelId }),
+          ...(data.docketNumber !== undefined && { radicado: data.docketNumber }),
+          ...(data.courtId !== undefined && { juzgadoId: data.courtId }),
+          ...(data.precautionaryMeasureId !== undefined && { medidaCautelarId: data.precautionaryMeasureId }),
+          ...(data.intakeDate !== undefined && { fechaReparto: data.intakeDate ? new Date(data.intakeDate) : null }),
+          ...(data.lawsuitDate !== undefined && { fechaPresentacionDemanda: data.lawsuitDate ? new Date(data.lawsuitDate) : null }),
+          ...(data.paymentOrderDate !== undefined && { mandamientoPagoFecha: data.paymentOrderDate ? new Date(data.paymentOrderDate) : null }),
+          ...(data.proceedExecutionDate !== undefined && { autoSeguirEjecucionFecha: data.proceedExecutionDate ? new Date(data.proceedExecutionDate) : null }),
+          ...(data.creditLiquidationDate !== undefined && { liquidacionCreditoAprobadaFecha: data.creditLiquidationDate ? new Date(data.creditLiquidationDate) : null }),
+          ...(data.municipalityId !== undefined && { municipioId: data.municipalityId }),
+        },
+        include: {
+          actores: { include: { persona: true, rolActor: true } },
+          estadoObligacion: true,
+          juzgado: true,
+          municipio: true,
+          medidaCautelar: true,
+          nivelRecuperacion: true,
+        },
+      });
 
-    return Obligation.create(obligacion);
+      // Update debtors if provided (partial update)
+      if (data.debtors || data.coDebtors) {
+        // This is complex for a simple update, we usually only update contacts, but since we are replacing actors:
+        // We will just process contacts updates in the use case or let findOrCreatePersona handle it.
+        const rolDeudor = await tx.rolActor.findFirst({ where: { nombreRol: 'Deudor Principal' } });
+        const rolCodeudor = await tx.rolActor.findFirst({ where: { nombreRol: 'Codeudor' } });
+
+        // Update debtors
+        if (data.debtors) {
+          for (const debtor of data.debtors) {
+             await this.findOrCreatePersona(tx, clienteId, debtor);
+          }
+        }
+        if (data.coDebtors) {
+          for (const codebtor of data.coDebtors) {
+             await this.findOrCreatePersona(tx, clienteId, codebtor);
+          }
+        }
+      }
+
+      // Record Auditoria
+      if (auditoriaCambios && auditoriaCambios.length > 0) {
+        await tx.auditoriaObligacion.createMany({
+          data: auditoriaCambios.map(cambio => ({
+            obligacionId: id,
+            campoModificado: cambio.campoModificado,
+            valorAnterior: cambio.valorAnterior,
+            valorNuevo: cambio.valorNuevo,
+            usuarioId: usuarioId || null
+          }))
+        });
+      }
+
+      return Obligation.create(obligacion);
+    });
+  }
+
+  async updateStateWithHistory(
+    clienteId: string,
+    id: string,
+    estadoNuevoId?: string | null,
+    nivelRecuperacionNuevoId?: string | null,
+    usuarioId?: string | null,
+    observacion?: string | null
+  ): Promise<Obligation> {
+    return this.prisma.$transaction(async (tx) => {
+      const obligacionActual = await tx.obligacion.findFirst({
+        where: { id, clienteId }
+      });
+      if (!obligacionActual) throw new Error("Obligación no encontrada");
+
+      const data: any = {};
+      if (estadoNuevoId !== undefined) data.estadoObligacionId = estadoNuevoId;
+      if (nivelRecuperacionNuevoId !== undefined) data.nivelRecuperacionId = nivelRecuperacionNuevoId;
+
+      const obligacion = await tx.obligacion.update({
+        where: { id },
+        data,
+        include: {
+          actores: { include: { persona: true, rolActor: true } },
+          estadoObligacion: true,
+          juzgado: true,
+          municipio: true,
+          medidaCautelar: true,
+          nivelRecuperacion: true,
+        },
+      });
+
+      await tx.historialEstadoObligacion.create({
+        data: {
+          obligacionId: id,
+          estadoAnteriorId: obligacionActual.estadoObligacionId,
+          estadoNuevoId: estadoNuevoId !== undefined ? estadoNuevoId : obligacionActual.estadoObligacionId,
+          nivelRecuperacionAnteriorId: obligacionActual.nivelRecuperacionId,
+          nivelRecuperacionNuevoId: nivelRecuperacionNuevoId !== undefined ? nivelRecuperacionNuevoId : obligacionActual.nivelRecuperacionId,
+          usuarioId: usuarioId || null,
+          observacion: observacion || null
+        }
+      });
+
+      return Obligation.create(obligacion);
+    });
+  }
+
+  async addBitacora(
+    clienteId: string,
+    id: string,
+    observacion: string,
+    usuarioId?: string | null
+  ): Promise<void> {
+    const obligacion = await this.prisma.obligacion.findFirst({
+      where: { id, clienteId }
+    });
+    if (!obligacion) throw new Error("Obligación no encontrada");
+
+    await this.prisma.bitacoraObservacion.create({
+      data: {
+        obligacionId: id,
+        observacion,
+        usuarioId: usuarioId || null
+      }
+    });
   }
 
   async delete(clienteId: string, id: string): Promise<void> {

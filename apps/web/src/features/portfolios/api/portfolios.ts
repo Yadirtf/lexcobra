@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../../shared/api/client.js';
-import { CreatePortfolioInput } from '@lexcobra/shared-schemas';
+import { CreatePortfolioInput, UpdatePortfolioInput } from '@lexcobra/shared-schemas';
 
 export interface Portfolio {
   id: string;
@@ -11,6 +11,7 @@ export interface Portfolio {
   telefono: string | null;
   correo: string | null;
   observaciones: string | null;
+  logoUrl?: string | null;
   activo: boolean;
   createdAt: string;
   _count?: {
@@ -36,6 +37,21 @@ export function useCreatePortfolio() {
     mutationFn: async (data: CreatePortfolioInput) => {
       const response = await apiClient.post<{ success: boolean; data: Portfolio }>('/portfolios', data);
       if (!response.success) throw new Error('Error al crear cartera');
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['portfolios'] });
+    },
+  });
+}
+
+export function useUpdatePortfolio() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: UpdatePortfolioInput }) => {
+      const response = await apiClient.patch<{ success: boolean; data: Portfolio }>(`/portfolios/${id}`, data);
+      if (!response.success) throw new Error('Error al actualizar cartera');
       return response.data;
     },
     onSuccess: () => {

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, Building } from 'lucide-react';
-import { usePortfolios } from '../api/portfolios.js';
+import { Plus, Building, Edit2, Power, PowerOff } from 'lucide-react';
+import { usePortfolios, Portfolio, useUpdatePortfolio } from '../api/portfolios.js';
 import { CreatePortfolioModal } from './CreatePortfolioModal.js';
+import { UpdatePortfolioModal } from './UpdatePortfolioModal.js';
 import { useAuth } from '../../auth/hooks/useAuth.js';
 import './Portfolios.css';
 
@@ -11,6 +12,19 @@ export function PortfoliosListPage() {
   const { data: portfolios, isLoading, error } = usePortfolios();
   const { canManageUsers } = useAuth(); // LegalRep and SuperAdmin
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(null);
+  const { mutateAsync: updatePortfolio } = useUpdatePortfolio();
+
+  const handleToggleStatus = async (portfolio: Portfolio) => {
+    try {
+      await updatePortfolio({
+        id: portfolio.id,
+        data: { activo: !portfolio.activo }
+      });
+    } catch (e) {
+      alert('Error al cambiar el estado de la cartera');
+    }
+  };
 
   return (
     <div className="portfolios-container">
@@ -28,35 +42,70 @@ export function PortfoliosListPage() {
 
       <div className="portfolios-grid">
         {portfolios?.map((portfolio) => (
-          <div key={portfolio.id} className="portfolio-card">
-            <div className="portfolio-card-header">
-              <div>
-                <h3 className="portfolio-name">{portfolio.nombreEntidad}</h3>
-                <span className="portfolio-taxid">
-                  {portfolio.nit ? `NIT: ${portfolio.nit}` : 'Sin NIT registrado'}
+          <div key={portfolio.id} className="portfolio-card-wrapper">
+            <Link 
+              to="/portfolios/$portfolioId" 
+              params={{ portfolioId: portfolio.id }} 
+              className="portfolio-card"
+              style={portfolio.logoUrl ? {
+                backgroundImage: `linear-gradient(to bottom, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.6) 100%), url(${portfolio.logoUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                color: '#fff',
+                textShadow: '0 2px 4px rgba(0,0,0,0.6)',
+                border: '1px solid rgba(255,255,255,0.1)'
+              } : undefined}
+            >
+              <div className="portfolio-card-header">
+                <div>
+                  <h3 className="portfolio-name" style={portfolio.logoUrl ? { color: '#fff', textShadow: '0 2px 4px rgba(0,0,0,0.8)' } : {}}>{portfolio.nombreEntidad}</h3>
+                  <span className="portfolio-taxid" style={portfolio.logoUrl ? { color: 'rgba(255,255,255,0.9)', textShadow: '0 1px 2px rgba(0,0,0,0.8)' } : {}}>
+                    {portfolio.nit ? `NIT: ${portfolio.nit}` : 'Sin NIT registrado'}
+                  </span>
+                </div>
+                <span className={`status-badge ${!portfolio.activo ? 'inactive' : ''}`}>
+                  {portfolio.activo ? 'ACTIVA' : 'INACTIVA'}
                 </span>
               </div>
-              <span className={`status-badge ${!portfolio.activo ? 'inactive' : ''}`}>
-                {portfolio.activo ? 'ACTIVA' : 'INACTIVA'}
-              </span>
-            </div>
 
-            <div className="portfolio-stats">
-              <div className="stat-item">
-                <span className="stat-label">Obligaciones</span>
-                <span className="stat-value">{portfolio._count?.obligaciones || 0}</span>
+              <div className="portfolio-stats">
+                <div className="stat-item">
+                  <span className="stat-label" style={portfolio.logoUrl ? { color: '#bbb' } : {}}>Obligaciones</span>
+                  <span className="stat-value">{portfolio._count?.obligaciones || 0}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label" style={portfolio.logoUrl ? { color: '#bbb' } : {}}>Recaudo Estimado</span>
+                  <span className="stat-value" style={portfolio.logoUrl ? { color: '#4ade80' } : { color: 'var(--accent-h)' }}>$ 0</span>
+                </div>
               </div>
-              <div className="stat-item">
-                <span className="stat-label">Recaudo Estimado</span>
-                <span className="stat-value" style={{ color: 'var(--accent-h)' }}>$ 0</span>
-              </div>
-            </div>
+            </Link>
 
-            <div className="portfolio-actions">
-              <Link to="/portfolios/$portfolioId" params={{ portfolioId: portfolio.id }} className="btn-secondary" style={{ textDecoration: 'none' }}>
-                Ver Detalles
-              </Link>
-            </div>
+            {canManageUsers && (
+              <div className="portfolio-card-actions">
+                <button 
+                  className="icon-btn action-btn toggle-status-btn" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleToggleStatus(portfolio);
+                  }}
+                  title={portfolio.activo ? "Desactivar Cartera" : "Activar Cartera"}
+                >
+                  {portfolio.activo ? <PowerOff size={16} color="#ef4444" /> : <Power size={16} color="#22c55e" />}
+                </button>
+                <button 
+                  className="icon-btn action-btn edit-portfolio-btn" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSelectedPortfolio(portfolio);
+                  }}
+                  title="Editar Cartera"
+                >
+                  <Edit2 size={18} color="#4ade80" />
+                </button>
+              </div>
+            )}
           </div>
         ))}
 
@@ -71,6 +120,12 @@ export function PortfoliosListPage() {
       <CreatePortfolioModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
+      />
+
+      <UpdatePortfolioModal 
+        isOpen={!!selectedPortfolio}
+        onClose={() => setSelectedPortfolio(null)}
+        portfolio={selectedPortfolio}
       />
     </div>
   );

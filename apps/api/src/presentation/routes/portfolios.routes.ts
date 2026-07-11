@@ -1,7 +1,8 @@
 import { FastifyInstance } from 'fastify';
-import { createPortfolioSchema } from '@lexcobra/shared-schemas';
+import { createPortfolioSchema, updatePortfolioSchema } from '@lexcobra/shared-schemas';
 import { ListPortfoliosUseCase } from '../../core/use-cases/portfolios/ListPortfoliosUseCase.js';
 import { CreatePortfolioUseCase } from '../../core/use-cases/portfolios/CreatePortfolioUseCase.js';
+import { UpdatePortfolioUseCase } from '../../core/use-cases/portfolios/UpdatePortfolioUseCase.js';
 import { PrismaPortfolioRepository } from '../../infrastructure/repositories/PrismaPortfolioRepository.js';
 import { prisma } from '../../infrastructure/database/prisma.client.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
@@ -10,6 +11,7 @@ import { successResponse, errorResponse } from '../../shared/utils/index.js';
 const portfolioRepo = new PrismaPortfolioRepository(prisma);
 const listPortfoliosUseCase = new ListPortfoliosUseCase(portfolioRepo);
 const createPortfolioUseCase = new CreatePortfolioUseCase(portfolioRepo);
+const updatePortfolioUseCase = new UpdatePortfolioUseCase(portfolioRepo);
 
 export async function portfoliosRoutes(fastify: FastifyInstance) {
   // Aplicar middleware de autenticación a todas las rutas de este plugin
@@ -65,12 +67,49 @@ export async function portfoliosRoutes(fastify: FastifyInstance) {
         telefono: parseResult.data.telefono,
         correo: parseResult.data.correo,
         observaciones: parseResult.data.observaciones,
+        logoUrl: parseResult.data.logoUrl,
       });
 
       return reply.status(201).send(successResponse(newPortfolio));
     } catch (error) {
       request.log.error(error);
       return reply.status(500).send(errorResponse('INTERNAL_ERROR', 'Error creando la cartera'));
+    }
+  });
+
+  /**
+   * PATCH /api/portfolios/:id
+   * Actualiza una cartera existente
+   */
+  fastify.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
+    try {
+      const user = request.currentUser;
+      if (!user || !user.clienteId) throw new Error('Usuario inválido');
+
+      const isDueno = user.roles.includes('Dueño del sistema');
+      const isAdmin = user.roles.includes('Administrador');
+      if (!isDueno && !isAdmin) {
+        return reply.status(403).send(errorResponse('FORBIDDEN', 'No tienes permiso para editar carteras'));
+      }
+
+      const parseResult = updatePortfolioSchema.safeParse(request.body);
+      if (!parseResult.success) {
+        return reply.status(422).send(errorResponse('VALIDATION_ERROR', parseResult.error.issues[0]?.message ?? 'Datos inválidos'));
+      }
+
+      const updatedPortfolio = await updatePortfolioUseCase.execute(
+        user.clienteId,
+        request.params.id,
+        parseResult.data
+      );
+
+      return reply.send(successResponse(updatedPortfolio));
+    } catch (error: any) {
+      request.log.error(error);
+      if (error.message.includes('no encontrada')) {
+        return reply.status(404).send(errorResponse('NOT_FOUND', error.message));
+      }
+      return reply.status(500).send(errorResponse('INTERNAL_ERROR', 'Error actualizando la cartera'));
     }
   });
 }

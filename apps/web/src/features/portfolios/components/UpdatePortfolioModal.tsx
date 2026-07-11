@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
-import { useCreatePortfolio } from '../api/portfolios.js';
+import { useUpdatePortfolio, Portfolio } from '../api/portfolios.js';
 
-interface CreatePortfolioModalProps {
+interface UpdatePortfolioModalProps {
   isOpen: boolean;
   onClose: () => void;
+  portfolio: Portfolio | null;
 }
 
-export function CreatePortfolioModal({ isOpen, onClose }: CreatePortfolioModalProps) {
-  const { mutateAsync: createPortfolio, isPending } = useCreatePortfolio();
+export function UpdatePortfolioModal({ isOpen, onClose, portfolio }: UpdatePortfolioModalProps) {
+  const { mutateAsync: updatePortfolio, isPending } = useUpdatePortfolio();
   
   const [formData, setFormData] = useState({
     nombreEntidad: '',
@@ -18,26 +19,44 @@ export function CreatePortfolioModal({ isOpen, onClose }: CreatePortfolioModalPr
     correo: '',
     logoUrl: '',
     observaciones: '',
+    activo: true,
   });
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (portfolio) {
+      setFormData({
+        nombreEntidad: portfolio.nombreEntidad || '',
+        nit: portfolio.nit || '',
+        representante: portfolio.representante || '',
+        telefono: portfolio.telefono || '',
+        correo: portfolio.correo || '',
+        logoUrl: portfolio.logoUrl || '',
+        observaciones: portfolio.observaciones || '',
+        activo: portfolio.activo,
+      });
+    }
+  }, [portfolio]);
+
+  if (!isOpen || !portfolio) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createPortfolio({
-        ...formData,
-        correo: formData.correo || undefined,
-        nit: formData.nit || undefined,
-        telefono: formData.telefono || undefined,
-        representante: formData.representante || undefined,
-        logoUrl: formData.logoUrl || undefined,
-        observaciones: formData.observaciones || undefined,
+      await updatePortfolio({
+        id: portfolio.id,
+        data: {
+          ...formData,
+          correo: formData.correo || undefined,
+          nit: formData.nit || undefined,
+          telefono: formData.telefono || undefined,
+          representante: formData.representante || undefined,
+          logoUrl: formData.logoUrl || undefined,
+          observaciones: formData.observaciones || undefined,
+        }
       });
       onClose();
-      setFormData({ nombreEntidad: '', nit: '', representante: '', telefono: '', correo: '', logoUrl: '', observaciones: '' });
     } catch (error) {
-      alert('Error al crear cartera');
+      alert('Error al actualizar cartera');
     }
   };
 
@@ -45,7 +64,7 @@ export function CreatePortfolioModal({ isOpen, onClose }: CreatePortfolioModalPr
     <div className="modal-overlay">
       <div className="modal">
         <div className="modal-header">
-          <h2 className="modal-title">Nueva Cartera</h2>
+          <h2 className="modal-title">Editar Cartera</h2>
           <button className="icon-btn" onClick={onClose}><X size={20} /></button>
         </div>
 
@@ -129,7 +148,7 @@ export function CreatePortfolioModal({ isOpen, onClose }: CreatePortfolioModalPr
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
             <button type="submit" className="btn-primary" disabled={isPending || !formData.nombreEntidad}>
-              {isPending ? 'Guardando...' : <><Save size={16} /> Crear Cartera</>}
+              {isPending ? 'Guardando...' : <><Save size={16} /> Guardar Cambios</>}
             </button>
           </div>
         </form>

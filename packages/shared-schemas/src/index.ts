@@ -19,9 +19,12 @@ export const createPortfolioSchema = z.object({
   telefono: z.string().max(30).optional(),
   correo: z.string().email('Email inválido').optional().or(z.literal('')),
   observaciones: z.string().max(1000).optional(),
+  logoUrl: z.string().url('URL inválida').optional().or(z.literal('')),
 });
 
-export const updatePortfolioSchema = createPortfolioSchema.partial();
+export const updatePortfolioSchema = createPortfolioSchema.partial().extend({
+  activo: z.boolean().optional(),
+});
 
 // ── Persona (Deudor/Codeudor) ──────────────────────────────────
 export const personSchema = z.object({
@@ -108,6 +111,7 @@ export const createReportLinkSchema = z.object({
 // Tipos inferidos de los schemas
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreatePortfolioInput = z.infer<typeof createPortfolioSchema>;
+export type UpdatePortfolioInput = z.infer<typeof updatePortfolioSchema>;
 export type CreateObligationInput = z.infer<typeof createObligationSchema>;
 export type UpdateObligationInput = z.infer<typeof updateObligationSchema>;
 export type CreateRecoveryInput = z.infer<typeof createRecoverySchema>;

@@ -248,8 +248,20 @@ CREATE TABLE notificaciones (
 );
 
 -- =============================================================================
--- 4. RECAUDOS Y BITÁCORAS (MÉTRICAS Y SEGUIMIENTO)
+-- 4. RECAUDOS, BITÁCORAS E HISTORIALES (MÉTRICAS Y SEGUIMIENTO)
 -- =============================================================================
+
+CREATE TABLE historial_estados_obligacion (
+    id SERIAL PRIMARY KEY,
+    obligacion_id INT REFERENCES obligaciones(id) ON DELETE CASCADE,
+    estado_anterior_id INT REFERENCES estados_obligacion(id),
+    estado_nuevo_id INT REFERENCES estados_obligacion(id),
+    nivel_recuperacion_anterior_id INT REFERENCES niveles_recuperacion(id),
+    nivel_recuperacion_nuevo_id INT REFERENCES niveles_recuperacion(id),
+    usuario_id INT REFERENCES usuarios(id),
+    observacion TEXT,
+    fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE recaudos (
     id SERIAL PRIMARY KEY,
@@ -266,4 +278,14 @@ CREATE TABLE bitacora_observaciones (
     observacion TEXT NOT NULL,
     usuario_id INT REFERENCES usuarios(id), -- Asesor que registra el seguimiento
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE auditoria_obligaciones (
+    id SERIAL PRIMARY KEY,
+    obligacion_id INT REFERENCES obligaciones(id) ON DELETE CASCADE,
+    campo_modificado VARCHAR(100) NOT NULL,
+    valor_anterior TEXT,
+    valor_nuevo TEXT,
+    usuario_id INT REFERENCES usuarios(id),
+    fecha_cambio TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

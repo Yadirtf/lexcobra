@@ -168,8 +168,10 @@ model Usuario {
   empleado                 Empleado?
   recaudos                 Recaudo[]
   bitacoraObservaciones    BitacoraObservacion[]
+  historialEstados         HistorialEstadoObligacion[]
   reportSnapshotsCreated   ReportSnapshot[]
   reportLinksCreated       ReportLink[]
+  auditoriaObligaciones    AuditoriaObligacion[]
 
   @@unique([clienteId, correo])
   @@map("usuarios")
@@ -354,6 +356,8 @@ model EstadoObligacion {
   color  String? // Para el badge en la UI
 
   obligaciones Obligacion[]
+  historialesComoAnterior HistorialEstadoObligacion[] @relation("EstadoAnterior")
+  historialesComoNuevo HistorialEstadoObligacion[] @relation("EstadoNuevo")
 
   @@map("estados_obligacion")
 }
@@ -365,6 +369,8 @@ model NivelRecuperacion {
   color  String? // Para el badge
 
   obligaciones Obligacion[]
+  historialesComoAnterior HistorialEstadoObligacion[] @relation("NivelRecuperacionAnterior")
+  historialesComoNuevo HistorialEstadoObligacion[] @relation("NivelRecuperacionNuevo")
 
   @@map("niveles_recuperacion")
 }
@@ -410,6 +416,8 @@ model Obligacion {
 
   actores          ObligacionActor[]
   historialMedidas HistorialMedida[]
+  historialEstados HistorialEstadoObligacion[]
+  auditoria        AuditoriaObligacion[]
   notificaciones   Notificacion[]
   recaudos         Recaudo[]
   bitacora         BitacoraObservacion[]
@@ -509,6 +517,46 @@ model BitacoraObservacion {
 
   @@index([obligacionId])
   @@map("bitacora_observaciones")
+}
+
+/// Historial de cambios de estado de una obligación
+model HistorialEstadoObligacion {
+  id                            String   @id @default(uuid())
+  obligacionId                  String
+  estadoAnteriorId              String?
+  estadoNuevoId                 String?
+  nivelRecuperacionAnteriorId   String?
+  nivelRecuperacionNuevoId      String?
+  usuarioId                     String?
+  observacion                   String?
+  fechaCambio                   DateTime @default(now())
+
+  obligacion                 Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  estadoAnterior             EstadoObligacion? @relation("EstadoAnterior", fields: [estadoAnteriorId], references: [id])
+  estadoNuevo                EstadoObligacion? @relation("EstadoNuevo", fields: [estadoNuevoId], references: [id])
+  nivelRecuperacionAnterior  NivelRecuperacion? @relation("NivelRecuperacionAnterior", fields: [nivelRecuperacionAnteriorId], references: [id])
+  nivelRecuperacionNuevo     NivelRecuperacion? @relation("NivelRecuperacionNuevo", fields: [nivelRecuperacionNuevoId], references: [id])
+  usuario                    Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([obligacionId])
+  @@map("historial_estados_obligacion")
+}
+
+/// Auditoría genérica de cambios en una obligación
+model AuditoriaObligacion {
+  id               String   @id @default(uuid())
+  obligacionId     String
+  campoModificado  String
+  valorAnterior    String?
+  valorNuevo       String?
+  usuarioId        String?
+  fechaCambio      DateTime @default(now())
+
+  obligacion Obligacion @relation(fields: [obligacionId], references: [id], onDelete: Cascade)
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@index([obligacionId])
+  @@map("auditoria_obligaciones")
 }
 
 // ───────────────────────────────────────────────
