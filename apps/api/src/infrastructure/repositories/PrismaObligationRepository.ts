@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IObligationRepository } from '../../core/repositories/IObligationRepository.js';
+import { IObligationRepository, RecaudoItem, NotificacionItem } from '../../core/repositories/IObligationRepository.js';
 import { Obligation } from '../../core/entities/Obligation.js';
 import { CreateObligationInput, UpdateObligationInput } from '@lexcobra/shared-schemas';
 
@@ -11,7 +11,7 @@ export class PrismaObligationRepository implements IObligationRepository {
       where: { id, clienteId },
       include: {
         actores: {
-          include: { persona: true, rolActor: true },
+            include: { persona: { include: { contactos: { include: { tipoContacto: true } } } }, rolActor: true },
         },
         estadoObligacion: true,
         juzgado: true,
@@ -29,7 +29,7 @@ export class PrismaObligationRepository implements IObligationRepository {
       where: { carteraId, clienteId, isActive: true },
       include: {
         actores: {
-          include: { persona: true, rolActor: true },
+          include: { persona: { include: { contactos: { include: { tipoContacto: true } } } }, rolActor: true },
         },
         estadoObligacion: true,
         juzgado: true,
@@ -95,7 +95,7 @@ export class PrismaObligationRepository implements IObligationRepository {
           },
         },
         include: {
-          actores: { include: { persona: true, rolActor: true } },
+          actores: { include: { persona: { include: { contactos: { include: { tipoContacto: true } } } }, rolActor: true } },
           estadoObligacion: true,
           juzgado: true,
           municipio: true,
@@ -136,7 +136,7 @@ export class PrismaObligationRepository implements IObligationRepository {
           ...(data.municipalityId !== undefined && { municipioId: data.municipalityId }),
         },
         include: {
-          actores: { include: { persona: true, rolActor: true } },
+          actores: { include: { persona: { include: { contactos: { include: { tipoContacto: true } } } }, rolActor: true } },
           estadoObligacion: true,
           juzgado: true,
           municipio: true,
@@ -204,7 +204,7 @@ export class PrismaObligationRepository implements IObligationRepository {
         where: { id },
         data,
         include: {
-          actores: { include: { persona: true, rolActor: true } },
+          actores: { include: { persona: { include: { contactos: { include: { tipoContacto: true } } } }, rolActor: true } },
           estadoObligacion: true,
           juzgado: true,
           municipio: true,
@@ -247,6 +247,129 @@ export class PrismaObligationRepository implements IObligationRepository {
         usuarioId: usuarioId || null
       }
     });
+  }
+
+  async addRecaudo(
+    clienteId: string,
+    obligacionId: string,
+    monto: number,
+    fechaAbonada: Date,
+    usuarioId?: string | null,
+    observacion?: string | null
+  ): Promise<void> {
+    const obligacion = await this.prisma.obligacion.findFirst({
+      where: { id: obligacionId, clienteId }
+    });
+    if (!obligacion) throw new Error("Obligación no encontrada");
+
+    await this.prisma.$transaction(async (tx) => {
+      // Create recaudo
+      await tx.recaudo.create({
+        data: {
+          obligacionId,
+          monto,
+          fechaAbonada,
+          usuarioId: usuarioId || null,
+          observacion: observacion || null
+        } as any
+      });
+    });
+  }
+
+  async getRecaudos(
+    clienteId: string,
+    obligacionId: string
+  ): Promise<RecaudoItem[]> {
+    const obligacion = await this.prisma.obligacion.findFirst({
+      where: { id: obligacionId, clienteId }
+    });
+    if (!obligacion) throw new Error("Obligación no encontrada");
+
+    const recaudos = await this.prisma.recaudo.findMany({
+      where: { obligacionId },
+      include: {
+        usuario: {
+          select: {
+            correo: true,
+            empleado: {
+              select: {
+                nombres: true,
+                apellidos: true
+              }
+            }
+          }
+        }
+      },
+      orderBy: { fechaAbonada: 'desc' }
+    });
+
+    return recaudos.map(r => ({
+      id: r.id,
+      obligacionId: r.obligacionId,
+      fechaAbonada: r.fechaAbonada,
+      monto: Number(r.monto),
+      usuarioId: r.usuarioId,
+      createdAt: r.createdAt,
+      usuario: r.usuario,
+      observacion: (r as any).observacion
+    }));
+  }
+
+  async addNotificacion(
+    clienteId: string,
+    obligacionId: string,
+    data: {
+      destinatarioPersonaId?: string | null;
+      fechaNotificacion: Date;
+      observacion?: string | null;
+    }
+  ): Promise<void> {
+    const obligacion = await this.prisma.obligacion.findFirst({
+      where: { id: obligacionId, clienteId }
+    });
+    if (!obligacion) throw new Error("Obligación no encontrada");
+
+    await (this.prisma as any).notificacion.create({
+      data: {
+        obligacionId,
+        destinatarioPersonaId: data.destinatarioPersonaId || null,
+        fechaNotificacion: data.fechaNotificacion,
+        observacion: data.observacion || null
+      }
+    });
+  }
+
+  async getNotificaciones(
+    clienteId: string,
+    obligacionId: string
+  ): Promise<NotificacionItem[]> {
+    const obligacion = await this.prisma.obligacion.findFirst({
+      where: { id: obligacionId, clienteId }
+    });
+    if (!obligacion) throw new Error("Obligación no encontrada");
+
+    const list = await (this.prisma as any).notificacion.findMany({
+      where: { obligacionId },
+      include: {
+        destinatarioPersona: {
+          select: {
+            nombreCompleto: true,
+            numeroIdentificacion: true
+          }
+        }
+      },
+      orderBy: { fechaNotificacion: 'desc' }
+    });
+
+    return list.map((n: any) => ({
+      id: n.id,
+      obligacionId: n.obligacionId,
+      destinatarioPersonaId: n.destinatarioPersonaId,
+      fechaNotificacion: n.fechaNotificacion,
+      observacion: n.observacion,
+      createdAt: n.createdAt,
+      destinatarioPersona: n.destinatarioPersona
+    }));
   }
 
   async delete(clienteId: string, id: string): Promise<void> {

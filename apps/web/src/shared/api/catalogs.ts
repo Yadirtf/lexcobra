@@ -35,10 +35,20 @@ export function useCatalogs() {
     }
   });
 
+  const { data: medidasCautelares, isLoading: loadingMedidas } = useQuery({
+    queryKey: ['catalogs', 'medidas-cautelares'],
+    queryFn: async () => {
+      const res = await apiClient.get<{ success: boolean; data: CatalogItem[] }>('/catalogs/medidas-cautelares');
+      if (!res.success) throw new Error('Error fetching medidas cautelares');
+      return res.data;
+    }
+  });
+
   return {
     estadosObligacion,
     nivelesRecuperacion,
     tiposContacto,
-    isLoading: loadingEstados || loadingNiveles || loadingContactos
+    medidasCautelares,
+    isLoading: loadingEstados || loadingNiveles || loadingContactos || loadingMedidas
   };
 }

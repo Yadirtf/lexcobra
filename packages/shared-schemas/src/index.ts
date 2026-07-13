@@ -65,9 +65,18 @@ export const updateObligationSchema = createObligationSchema.partial();
 // ── Recaudo ────────────────────────────────────────────────────
 export const createRecoverySchema = z.object({
   monto: z.number().positive('El monto debe ser mayor a 0'),
-  fechaAbonada: z.string().datetime(),
+  fechaAbonada: z.string().min(1, 'La fecha es requerida'),
   observacion: z.string().max(500).optional(),
 });
+
+// ── Notificación ───────────────────────────────────────────────
+export const createNotificationSchema = z.object({
+  destinatarioPersonaId: z.string().uuid('ID de destinatario inválido').optional().nullable().or(z.literal('')),
+  fechaNotificacion: z.string().min(1, 'La fecha de notificación es requerida'),
+  observacion: z.string().max(2000).optional().nullable(),
+});
+
+export type CreateNotificationInput = z.infer<typeof createNotificationSchema>;
 
 // ── Bitácora (Observaciones) ───────────────────────────────────
 export const createNoteSchema = z.object({

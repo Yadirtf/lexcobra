@@ -102,15 +102,83 @@ pnpm install
 
 
 
-INICIAR LA BASE DE DATOS CON DATOS NECESARIO Y LIMPIA:
-# 1. Entra a la carpeta de la API
-cd apps\api
-# 2. Borra toda la base de datos y vuelve a aplicar la estructura vacía
+---
+
+## 🗄️ 5. Limpieza, Inicialización y Semillado de la Base de Datos
+
+Cuando necesites limpiar toda la base de datos y dejarla lista para producción (o desarrollo limpio) únicamente con los datos del administrador y catálogos obligatorios, puedes hacerlo de dos formas.
+
+> [!IMPORTANT]
+> **Recomendado:** Ejecuta siempre los comandos desde la **raíz del proyecto** para mantener la consistencia y no tener que cambiar de directorios.
+
+### Método A: Desde la raíz del proyecto (Recomendado 🚀)
+
+#### 1. Limpiar la base de datos por completo (Borra todos los registros y restablece el esquema vacío)
+```bash
+pnpm --filter @lexcobra/api prisma migrate reset --force
+```
+
+#### 2. Definir variable de entorno para omitir datos de prueba (Demo Data) y poblar sólo con Administradores y Catálogos
+Dependiendo de la terminal que estés usando en tu editor de código o sistema, ejecuta:
+
+* **En PowerShell (Windows):**
+  ```powershell
+  $env:SKIP_DEMO_DATA="true"
+  pnpm db:seed
+  ```
+
+* **En Command Prompt (CMD - Windows):**
+  ```cmd
+  set SKIP_DEMO_DATA=true
+  pnpm db:seed
+  ```
+
+* **En Git Bash / Linux / macOS:**
+  ```bash
+  SKIP_DEMO_DATA=true pnpm db:seed
+  ```
+
+#### 3. Sincronizar y generar los tipos actualizados de Prisma
+```bash
+pnpm db:generate
+```
+
+---
+
+### Método B: Accediendo a la subcarpeta de la API
+
+Si prefieres trabajar directamente dentro del subproyecto de la API:
+
+```bash
+# 1. Ir a la carpeta de la API
+cd apps/api
+
+# 2. Resetear base de datos
 npx prisma migrate reset --force
-# 3. Establece la variable de entorno para omitir datos de prueba (en PowerShell)
+
+# 3. Establecer la variable de entorno (Ejemplo en PowerShell)
 $env:SKIP_DEMO_DATA="true"
-# 4. Ejecuta el archivo semilla (solo creará catálogos y el Super Admin)
+
+# 4. Ejecutar el archivo semilla limpio
 pnpm run db:seed
 
-#5. push para cargar
+# 5. Sincronizar el esquema con la base de datos
 npx prisma db push
+```
+
+---
+
+## ⚠️ 6. Solución de Problemas Comunes
+
+### Error: `EPERM: operation not permitted` al ejecutar `prisma generate`
+* **Por qué sucede:** En Windows, el servidor de desarrollo (`pnpm dev`) mantiene abierto el archivo binario del motor de consultas (`query_engine-windows.dll.node`) y lo bloquea, impidiendo que Prisma lo actualice.
+* **Cómo solucionarlo:**
+  1. Detén el servidor de desarrollo en tu consola presionando `Ctrl + C`.
+  2. Ejecuta el comando de generación:
+     ```bash
+     pnpm db:generate
+     ```
+  3. Vuelve a iniciar tu servidor de desarrollo con:
+     ```bash
+     pnpm dev
+     ```

@@ -21,11 +21,14 @@ export class UpdateObligationUseCase {
     const auditoriaCambios: Array<{ campoModificado: string; valorAnterior: string | null; valorNuevo: string | null }> = [];
 
     const compareAndAdd = (campo: string, oldVal: any, newVal: any) => {
-      if (newVal !== undefined && oldVal !== newVal) {
+      const normOld = (oldVal === undefined || oldVal === null || oldVal === '') ? null : oldVal;
+      const normNew = (newVal === undefined || newVal === null || newVal === '') ? null : newVal;
+
+      if (newVal !== undefined && normOld !== normNew) {
         auditoriaCambios.push({
           campoModificado: campo,
-          valorAnterior: oldVal ? String(oldVal) : null,
-          valorNuevo: newVal ? String(newVal) : null,
+          valorAnterior: normOld ? String(normOld) : null,
+          valorNuevo: normNew ? String(normNew) : null,
         });
       }
     };

@@ -1,4 +1,5 @@
-import { X, FileText, Scale, Users, Clock, BookOpen, ArrowRight, User, Info, AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { X, FileText, Scale, Users, Clock, BookOpen, ArrowRight, User, Info, AlertCircle, ChevronDown, Phone, Mail, MapPin, DollarSign, Bell } from 'lucide-react';
 import { Obligation, useObligationHistory } from '../api/obligations.js';
 import { useCatalogs } from '../../../shared/api/catalogs.js';
 import { useJuzgados } from '../api/catalogs.js';
@@ -45,16 +46,30 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
   );
 
   // Cargar todos los catálogos para resolver IDs → nombres en la auditoría
-  const { estadosObligacion, nivelesRecuperacion } = useCatalogs();
+  const { estadosObligacion, nivelesRecuperacion, medidasCautelares } = useCatalogs();
   const { data: juzgados } = useJuzgados();
+
+  // Estado local para el accordion de actores (debe ir ANTES del early return)
+  const [expandedActor, setExpandedActor] = useState<number | null>(null);
+  const toggleActor = (idx: number) =>
+    setExpandedActor(prev => (prev === idx ? null : idx));
 
   if (!isOpen || !obligation) return null;
 
   const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(amount);
 
-  const formatDate = (d?: string | null) =>
-    d ? new Date(d).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
+  const formatDate = (d?: string | null) => {
+    if (!d) return null;
+    try {
+      const cleanDate = d.split('T')[0];
+      const [year, month, day] = cleanDate.split('-');
+      const dateObj = new Date(Number(year), Number(month) - 1, Number(day));
+      return dateObj.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return d;
+    }
+  };
 
   const formatDateTime = (d: string) =>
     new Date(d).toLocaleString('es-CO', {
@@ -97,6 +112,12 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
       if (found) return found.nombre ?? valor;
     }
 
+    // Intentar en medidas cautelares
+    if (campo === 'medidaCautelarId') {
+      const found = medidasCautelares?.find((m: any) => m.id === valor);
+      if (found) return found.nombre;
+    }
+
     // UUID no resuelto → mostrar versión corta
     return `${valor.slice(0, 8)}…`;
   };
@@ -108,10 +129,12 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
     : undefined;
 
   // Build timeline
-  const timeline: { type: 'bitacora' | 'estado' | 'auditoria'; date: string; data: any }[] = [];
+  const timeline: { type: 'bitacora' | 'estado' | 'auditoria' | 'recaudo' | 'notificacion'; date: string; data: any }[] = [];
   if (history?.bitacoras)  history.bitacoras.forEach((b: any)  => timeline.push({ type: 'bitacora',  date: b.createdAt,   data: b }));
   if (history?.estados)    history.estados.forEach((e: any)    => timeline.push({ type: 'estado',    date: e.fechaCambio, data: e }));
   if (history?.auditorias) history.auditorias.forEach((a: any) => timeline.push({ type: 'auditoria', date: a.fechaCambio, data: a }));
+  if (history?.recaudos)   history.recaudos.forEach((r: any)   => timeline.push({ type: 'recaudo',   date: r.createdAt, data: r }));
+  if (history?.notificaciones) history.notificaciones.forEach((n: any) => timeline.push({ type: 'notificacion', date: n.createdAt, data: n }));
   timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   return (
@@ -223,6 +246,12 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
                 </span>
               </div>
               <div className="data-row">
+                <span className="data-row-label">Fecha Asignación (Reparto)</span>
+                <span className={`data-row-value${!formatDate(obligation.fechaReparto) ? ' na' : ''}`}>
+                  {formatDate(obligation.fechaReparto) || 'N/A'}
+                </span>
+              </div>
+              <div className="data-row">
                 <span className="data-row-label">Fecha Demanda</span>
                 <span className={`data-row-value${!formatDate(obligation.fechaPresentacionDemanda) ? ' na' : ''}`}>
                   {formatDate(obligation.fechaPresentacionDemanda) || 'N/A'}
@@ -232,6 +261,18 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
                 <span className="data-row-label">Mandamiento Pago</span>
                 <span className={`data-row-value${!formatDate(obligation.mandamientoPagoFecha) ? ' na' : ''}`}>
                   {formatDate(obligation.mandamientoPagoFecha) || 'N/A'}
+                </span>
+              </div>
+              <div className="data-row">
+                <span className="data-row-label">Auto Seguir Ejecución</span>
+                <span className={`data-row-value${!formatDate(obligation.autoSeguirEjecucionFecha) ? ' na' : ''}`}>
+                  {formatDate(obligation.autoSeguirEjecucionFecha) || 'N/A'}
+                </span>
+              </div>
+              <div className="data-row">
+                <span className="data-row-label">Liquidación Crédito</span>
+                <span className={`data-row-value${!formatDate(obligation.liquidacionCreditoAprobadaFecha) ? ' na' : ''}`}>
+                  {formatDate(obligation.liquidacionCreditoAprobadaFecha) || 'N/A'}
                 </span>
               </div>
             </div>
@@ -247,7 +288,7 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
               </span>
             </div>
 
-            {obligation.actores.length === 0 ? (
+          {obligation.actores.length === 0 ? (
               <p style={{ fontSize: '0.84rem', color: 'var(--text-4)', fontStyle: 'italic' }}>
                 Sin actores registrados.
               </p>
@@ -257,16 +298,77 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
                   const initials = actor.persona.nombreCompleto
                     ? actor.persona.nombreCompleto.split(' ').map((w: string) => w[0]).slice(0, 2).join('')
                     : '??';
+                  const isExpanded = expandedActor === idx;
+                  const contactos = actor.persona.contactos ?? [];
+                  const hasContactos = contactos.length > 0;
+
                   return (
-                    <div className="actor-chip" key={idx}>
-                      <div className="actor-avatar">{initials}</div>
-                      <div className="actor-info">
-                        <span className="actor-name">{actor.persona.nombreCompleto}</span>
-                        <span className="actor-doc">{actor.persona.numeroIdentificacion}</span>
+                    <div className={`actor-accordion${isExpanded ? ' expanded' : ''}`} key={idx}>
+                      {/* Header del actor — siempre visible */}
+                      <button
+                        className="actor-accordion-header"
+                        onClick={() => toggleActor(idx)}
+                        aria-expanded={isExpanded}
+                        aria-controls={`actor-contacts-${idx}`}
+                        title={hasContactos ? (isExpanded ? 'Ocultar contactos' : 'Ver contactos') : 'Sin contactos registrados'}
+                      >
+                        <div className="actor-avatar">{initials}</div>
+                        <div className="actor-info">
+                          <span className="actor-name">{actor.persona.nombreCompleto}</span>
+                          <span className="actor-doc">{actor.persona.numeroIdentificacion}</span>
+                        </div>
+                        <span className="actor-role-badge">
+                          {actor.rolActor?.nombreRol || 'Sin rol'}
+                        </span>
+                        <div className={`actor-chevron${isExpanded ? ' open' : ''}${!hasContactos ? ' disabled' : ''}`}>
+                          <ChevronDown size={14} />
+                        </div>
+                      </button>
+
+                      {/* Cuerpo desplegable — solo visible al expandir */}
+                      <div
+                        id={`actor-contacts-${idx}`}
+                        className="actor-accordion-body"
+                        style={{ maxHeight: isExpanded ? '500px' : '0' }}
+                        aria-hidden={!isExpanded}
+                      >
+                        <div className="actor-contacts-inner">
+                          {hasContactos ? (
+                            <>
+                              <p className="actor-contacts-label">Información de Contacto</p>
+                              <div className="actor-contacts-grid">
+                                {contactos.map((c) => {
+                                  const tipo = (c.tipoContacto?.nombre || '').toLowerCase();
+                                  const isMail  = /mail|correo|email/i.test(tipo);
+                                  const isAddr  = /direcci|address|ubic/i.test(tipo);
+                                  const Icon = isMail ? Mail : isAddr ? MapPin : Phone;
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      className={`actor-contact-item${c.esPrincipal ? ' principal' : ''}`}
+                                    >
+                                      <div className="actor-contact-icon">
+                                        <Icon size={12} />
+                                      </div>
+                                      <div className="actor-contact-info">
+                                        <span className="actor-contact-type">
+                                          {c.tipoContacto?.nombre || 'Contacto'}
+                                          {c.esPrincipal && <span className="actor-contact-principal">Principal</span>}
+                                        </span>
+                                        <span className="actor-contact-value">{c.valor}</span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          ) : (
+                            <p className="actor-contacts-empty">
+                              No hay información de contacto registrada.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <span className="actor-role-badge">
-                        {actor.rolActor?.nombreRol || 'Sin rol'}
-                      </span>
                     </div>
                   );
                 })}
@@ -305,11 +407,62 @@ export function ViewObligationModal({ obligation, isOpen, onClose }: ViewObligat
                       {item.type === 'bitacora'  && <BookOpen size={7} />}
                       {item.type === 'estado'    && <ArrowRight size={7} />}
                       {item.type === 'auditoria' && <Info size={7} />}
+                      {item.type === 'recaudo'   && <DollarSign size={7} />}
+                      {item.type === 'notificacion' && <Bell size={7} />}
                     </div>
 
-                    <span className="timeline-date">{formatDateTime(item.date)}</span>
+                    <span className="timeline-date">
+                      {item.type === 'recaudo' ? formatDate(item.date) : formatDateTime(item.date)}
+                    </span>
 
                     <div className="timeline-card">
+                      {/* ── Notificación ───────────────────────── */}
+                      {item.type === 'notificacion' && (
+                        <>
+                          <div className="timeline-card-type notificacion" style={{ color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                            <Bell size={10} />
+                            Notificación Procesal
+                          </div>
+                          <p className="timeline-card-body" style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text)', marginBottom: '0.25rem' }}>
+                            Destinatario: {item.data.destinatarioPersona ? item.data.destinatarioPersona.nombreCompleto : 'Destinatario no especificado'}
+                          </p>
+                          {item.data.destinatarioPersona?.numeroIdentificacion && (
+                            <p className="timeline-card-body" style={{ fontSize: '0.74rem', color: 'var(--text-4)', marginBottom: '0.25rem' }}>
+                              Doc: {item.data.destinatarioPersona.numeroIdentificacion}
+                            </p>
+                          )}
+                          <p className="timeline-card-body" style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>
+                            Fecha de envío: <strong>{formatDate(item.data.fechaNotificacion)}</strong>
+                          </p>
+                          {item.data.observacion && (
+                            <p className="timeline-card-body" style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginTop: '0.45rem', paddingTop: '0.35rem', borderTop: '1px dashed var(--border)' }}>
+                              {item.data.observacion}
+                            </p>
+                          )}
+                        </>
+                      )}
+
+                      {/* ── Recaudo ───────────────────────────── */}
+                      {item.type === 'recaudo' && (
+                        <>
+                          <div className="timeline-card-type recaudo" style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                            <DollarSign size={10} />
+                            Recaudo / Abono
+                          </div>
+                          <p className="timeline-card-body" style={{ fontSize: '0.875rem', fontWeight: 700, color: '#059669', fontFamily: 'var(--font-mono)', marginBottom: '0.25rem' }}>
+                            +{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(item.data.monto)}
+                          </p>
+                          <p className="timeline-card-body" style={{ fontSize: '0.78rem', color: 'var(--text-3)' }}>
+                            Fecha de abono: <strong>{formatDate(item.data.fechaAbonada)}</strong>
+                          </p>
+                          {item.data.observacion && (
+                            <p className="timeline-card-body" style={{ fontSize: '0.8rem', color: 'var(--text-2)', marginTop: '0.45rem', paddingTop: '0.35rem', borderTop: '1px dashed var(--border)' }}>
+                              {item.data.observacion}
+                            </p>
+                          )}
+                        </>
+                      )}
+
                       {/* ── Bitácora ─────────────────────────── */}
                       {item.type === 'bitacora' && (
                         <>

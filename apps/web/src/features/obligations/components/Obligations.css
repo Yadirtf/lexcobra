@@ -424,23 +424,73 @@
 
 .data-row-value.na { color: var(--text-4); font-weight: 400; font-style: italic; }
 
-/* Actor chip */
-.actor-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 0.75rem;
+/* ── ACTOR ACCORDION ─────────────────────────────────────────── */
+.actor-accordion {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-s);
-  margin-bottom: 0.5rem;
-  transition: border-color var(--transition-s);
+  overflow: hidden;
+  transition: border-color var(--transition-s), box-shadow var(--transition-s);
 }
 
-.actor-chip:last-child { margin-bottom: 0; }
+.actor-accordion:hover {
+  border-color: var(--border-2);
+}
 
-.actor-chip:hover { border-color: var(--border-2); }
+.actor-accordion.expanded {
+  border-color: var(--accent-s);
+  box-shadow: 0 0 0 3px var(--accent-xs);
+}
 
+/* Header – clickeable, siempre visible */
+.actor-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-s);
+}
+
+.actor-accordion-header:hover {
+  background: var(--surface-2);
+}
+
+/* Chevron icon */
+.actor-chevron {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-3);
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: transform var(--transition-s), background var(--transition-s), color var(--transition-s);
+}
+
+.actor-chevron.open {
+  transform: rotate(180deg);
+  background: var(--accent-xs);
+  border-color: var(--accent-s);
+  color: var(--accent-h);
+}
+
+.actor-chevron.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.actor-chevron svg { width: 14px; height: 14px; }
+
+/* Avatar */
 .actor-avatar {
   width: 32px;
   height: 32px;
@@ -488,6 +538,126 @@
   flex-shrink: 0;
 }
 
+/* Cuerpo desplegable — animado con max-height */
+.actor-accordion-body {
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 0;
+}
+
+.actor-contacts-inner {
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-top: 1px dashed var(--border);
+  background: var(--surface-2);
+}
+
+.actor-contacts-label {
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-4);
+  margin-bottom: 0.6rem;
+}
+
+/* Grid de contactos */
+.actor-contacts-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Tarjeta de contacto individual */
+.actor-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  transition: border-color var(--transition-s);
+}
+
+.actor-contact-item:hover { border-color: var(--border-2); }
+
+.actor-contact-item.principal {
+  border-color: rgba(5,150,105,.3);
+  background: rgba(5,150,105,.05);
+}
+
+.actor-contact-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: var(--accent-xs);
+  border: 1px solid var(--accent-s);
+  color: var(--accent-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.actor-contact-item.principal .actor-contact-icon {
+  background: rgba(5,150,105,.12);
+  border-color: rgba(5,150,105,.3);
+  color: #059669;
+}
+
+.actor-contact-icon svg { width: 12px; height: 12px; }
+
+.actor-contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.actor-contact-type {
+  font-size: 0.67rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-4);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.actor-contact-principal {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(5,150,105,.15);
+  color: #059669;
+  border: 1px solid rgba(5,150,105,.3);
+  border-radius: 99px;
+  padding: 0.05rem 0.35rem;
+}
+
+.actor-contact-value {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Empty state de contactos */
+.actor-contacts-empty {
+  font-size: 0.8rem;
+  color: var(--text-4);
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+
+
 /* ── TIMELINE ────────────────────────────────────────────────── */
 .timeline {
   display: flex;
@@ -532,6 +702,8 @@
 .timeline-dot.bitacora { border-color: var(--accent);   background: var(--accent-xs); }
 .timeline-dot.estado   { border-color: var(--success);  background: rgba(5,150,105,.1); }
 .timeline-dot.auditoria{ border-color: var(--gold);     background: var(--gold-s); }
+.timeline-dot.recaudo  { border-color: var(--success);  background: rgba(5,150,105,.1); }
+.timeline-dot.notificacion { border-color: #8b5cf6;  background: rgba(139,92,246,.1); }
 
 .timeline-dot svg { width: 7px; height: 7px; }
 
@@ -1045,4 +1217,172 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+/* ── RECAUDOS / ABONOS ─────────────────────────────────────────── */
+.recaudo-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.recaudo-metric-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 0.9rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.recaudo-metric-card-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+}
+
+.recaudo-metric-card-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.recaudo-metric-card.success {
+  background: rgba(5,150,105,.04);
+  border-color: rgba(5,150,105,.18);
+}
+.recaudo-metric-card.success .recaudo-metric-card-value {
+  color: #059669;
+}
+
+.recaudo-metric-card.danger {
+  background: rgba(220,38,38,.04);
+  border-color: rgba(220,38,38,.18);
+}
+.recaudo-metric-card.danger .recaudo-metric-card-value {
+  color: #dc2626;
+}
+
+.recaudo-form-section {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.recaudo-form-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recaudo-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .recaudo-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.recaudo-list-section {
+  margin-top: 1rem;
+}
+
+.recaudo-list-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.recaudo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: 350px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.recaudo-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  transition: border-color var(--transition-s), box-shadow var(--transition-s);
+}
+
+.recaudo-item:hover {
+  border-color: var(--border-2);
+  box-shadow: var(--shadow-xs);
+}
+
+.recaudo-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.recaudo-item-amount {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #059669;
+  font-family: var(--font-mono);
+}
+
+.recaudo-item-date {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.recaudo-item-user {
+  font-size: 0.72rem;
+  color: var(--text-4);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.recaudo-item-comment {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  line-height: 1.4;
+  padding-top: 0.25rem;
+  border-top: 1px dashed var(--border);
+  margin-top: 0.25rem;
+}
+
+.recaudo-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-4);
+  font-size: 0.82rem;
+  font-style: italic;
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-s);
 }
