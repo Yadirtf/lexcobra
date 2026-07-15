@@ -15,6 +15,7 @@ import { plansRoutes } from './presentation/routes/plans.routes.js';
 import { clientsRoutes } from './presentation/routes/clients.routes.js';
 import { adminRoutes } from './presentation/routes/admin.routes.js';
 import { personasRoutes } from './presentation/routes/personas.routes.js';
+import { reportsRoutes } from './presentation/routes/reports.routes.js';
 import { resolveTenant } from './presentation/middlewares/tenant.middleware.js';
 import { errorResponse } from './shared/utils/index.js';
 import prisma from './infrastructure/database/prisma.client.js';
@@ -85,6 +86,7 @@ async function buildServer() {
   fastify.register(clientsRoutes, { prefix: '/api/clients' });
   fastify.register(adminRoutes, { prefix: '/api/admin' });
   fastify.register(personasRoutes, { prefix: '/api/personas' });
+  fastify.register(reportsRoutes, { prefix: '/api/reports' });
 
   // Health check
   fastify.get('/health', async () => ({

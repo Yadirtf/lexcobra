@@ -13,6 +13,7 @@ import { AdminUsersPage } from '../features/admin/components/AdminUsersPage.js';
 import { AdminLocationsPage } from '../features/admin/components/AdminLocationsPage.js';
 import { EmployeesListPage } from '../features/employees/components/EmployeesListPage.js';
 import { CourtsPage } from '../features/courts/components/CourtsPage.js';
+import { PublicReportPage } from '../features/reports/components/PublicReportPage.js';
 
 // Root route
 const rootRoute = createRootRoute();
@@ -67,7 +68,6 @@ const PlaceholderPage = ({ title }: { title: string }) => (
   </div>
 );
 
-const obligationsRoute = createRoute({ getParentRoute: () => appRoute, path: '/obligations', component: () => <PlaceholderPage title="Obligaciones" /> });
 const courtsRoute = createRoute({ getParentRoute: () => appRoute, path: '/courts', component: CourtsPage });
 const reportsRoute = createRoute({ getParentRoute: () => appRoute, path: '/reports', component: () => <PlaceholderPage title="Reportes" /> });
 const catalogsRoute = createRoute({ getParentRoute: () => appRoute, path: '/catalogs', component: () => <PlaceholderPage title="Catálogos" /> });
@@ -114,15 +114,22 @@ const loginRoute = createRoute({
   },
 });
 
+// Public report route (external client sharing)
+const publicReportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/public/reports/$token',
+  component: PublicReportPage,
+});
+
 // Build route tree
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  publicReportRoute,
   appRoute.addChildren([
     dashboardRoute,
     portfoliosRoute,
     portfolioDetailsRoute,
     createObligationRoute,
-    obligationsRoute,
     courtsRoute,
     reportsRoute,
     catalogsRoute,

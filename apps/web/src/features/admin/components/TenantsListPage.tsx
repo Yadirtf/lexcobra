@@ -32,6 +32,40 @@ export function TenantsListPage() {
     fechaFinSuscripcion: ''
   });
 
+  const calculateEndDate = (startDateStr: string, planId: string): string => {
+    if (!startDateStr || !planId || !plans) return '';
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return '';
+
+    const months = plan.duracionMeses;
+    const [year, month, day] = startDateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    date.setMonth(date.getMonth() + months);
+
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const handlePlanChange = (planId: string) => {
+    const calculatedEnd = calculateEndDate(formData.fechaInicioSuscripcion, planId);
+    setFormData(prev => ({
+      ...prev,
+      planId,
+      fechaFinSuscripcion: calculatedEnd
+    }));
+  };
+
+  const handleStartDateChange = (fechaInicio: string) => {
+    const calculatedEnd = calculateEndDate(fechaInicio, formData.planId);
+    setFormData(prev => ({
+      ...prev,
+      fechaInicioSuscripcion: fechaInicio,
+      fechaFinSuscripcion: calculatedEnd
+    }));
+  };
+
   const openCreateModal = () => {
     setEditingTenantId(null);
     setFormData({
@@ -273,7 +307,7 @@ export function TenantsListPage() {
               <div className="form-group">
                 <label className="form-label">Plan a Contratar {editingTenantId ? '' : '*'}</label>
                 <select className="form-input" required={!editingTenantId}
-                  value={formData.planId} onChange={e => setFormData({...formData, planId: e.target.value})}>
+                  value={formData.planId} onChange={e => handlePlanChange(e.target.value)}>
                   <option value="">Seleccione un plan</option>
                   {plans?.map(p => (
                     <option key={p.id} value={p.id}>{p.nombre} - ${p.precio.toLocaleString()} / {p.duracionMeses} Meses</option>
@@ -284,7 +318,7 @@ export function TenantsListPage() {
                 <div className="form-group">
                   <label className="form-label">Fecha Inicio {editingTenantId ? '' : '*'}</label>
                   <input type="date" className="form-input" required={!editingTenantId && !!formData.planId}
-                    value={formData.fechaInicioSuscripcion} onChange={e => setFormData({...formData, fechaInicioSuscripcion: e.target.value})} />
+                    value={formData.fechaInicioSuscripcion} onChange={e => handleStartDateChange(e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Fecha Vencimiento {editingTenantId ? '' : '*'}</label>

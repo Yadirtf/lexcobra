@@ -1,13 +1,16 @@
 import { useParams, Link } from '@tanstack/react-router';
-import { ChevronLeft, Plus } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronLeft, Plus, FileText } from 'lucide-react';
 import { usePortfolios } from '../api/portfolios.js';
 import { useObligations } from '../../obligations/api/obligations.js';
 import { ObligationsTable } from '../../obligations/components/ObligationsTable.js';
+import { GenerateReportModal } from '../../reports/components/GenerateReportModal.js';
 
 export function PortfolioDetailsPage() {
   const { portfolioId } = useParams({ strict: false }) as { portfolioId: string };
   const { data: portfolios, isLoading: isPortfoliosLoading } = usePortfolios();
   const { data: obligations, isLoading: isObligationsLoading } = useObligations(portfolioId);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Buscar la cartera actual en la lista (lo ideal sería un endpoint getById, pero para mantenerlo simple reutilizamos el caché)
   const portfolio = portfolios?.find(p => p.id === portfolioId);
@@ -28,9 +31,18 @@ export function PortfolioDetailsPage() {
             NIT: {portfolio.nit || 'N/A'} | Rep. Legal: {portfolio.representante || 'N/A'}
           </p>
         </div>
-        <Link to="/portfolios/$portfolioId/obligations/new" params={{ portfolioId }} className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Plus size={18} /> Nueva Obligación
-        </Link>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button 
+            onClick={() => setIsReportModalOpen(true)} 
+            className="btn-secondary" 
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}
+          >
+            <FileText size={18} /> Reporte de Cartera
+          </button>
+          <Link to="/portfolios/$portfolioId/obligations/new" params={{ portfolioId }} className="btn-primary" style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Plus size={18} /> Nueva Obligación
+          </Link>
+        </div>
       </div>
 
       <div className="portfolio-stats" style={{ marginBottom: '2rem', background: 'var(--bg-surface)', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
@@ -55,6 +67,13 @@ export function PortfolioDetailsPage() {
       ) : (
         <ObligationsTable obligations={obligations || []} />
       )}
+
+      <GenerateReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        portfolioId={portfolioId}
+        portfolioName={portfolio.nombreEntidad}
+      />
     </div>
   );
 }

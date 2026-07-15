@@ -25,11 +25,13 @@
     "@lexcobra/shared-schemas": "workspace:*",
     "@lexcobra/shared-types": "workspace:*",
     "@prisma/client": "^6.10.1",
+    "@types/pdfkit": "0.17.6",
     "bcryptjs": "3.0.3",
     "exceljs": "^4.4.0",
     "fastify": "^5.4.0",
     "ioredis": "^5.4.2",
     "nanoid": "^5.1.5",
+    "pdfkit": "0.19.1",
     "pino": "^9.7.0",
     "pino-pretty": "^13.0.0",
     "zod": "^3.25.67"

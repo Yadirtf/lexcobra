@@ -26,6 +26,28 @@ class ApiClient {
     return headers;
   }
 
+  async getBlob(path: string): Promise<Blob> {
+    const response = await fetch(`${BASE_URL}${path}`, {
+      method: 'GET',
+      headers: this.buildHeaders(),
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      const refreshed = await this.tryRefresh();
+      if (refreshed) {
+        return this.getBlob(path);
+      }
+    }
+
+    if (!response.ok && response.status !== 401) {
+      const body = await response.json().catch(() => ({})) as { error?: { message?: string } };
+      throw new Error(body.error?.message ?? `Error ${response.status}`);
+    }
+
+    return response.blob();
+  }
+
   async get<T>(path: string): Promise<T> {
     const response = await fetch(`${BASE_URL}${path}`, {
       method: 'GET',

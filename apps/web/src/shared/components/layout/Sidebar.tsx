@@ -1,5 +1,5 @@
 import { Link, useLocation } from '@tanstack/react-router';
-import { LayoutDashboard, Briefcase, FileText, Scale, BarChart3, Settings, Users, CreditCard, Building2, X, MapPin } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Scale, BarChart3, Settings, Users, CreditCard, Building2, X, MapPin } from 'lucide-react';
 import { useAuth } from '../../../features/auth/hooks/useAuth.js';
 import './Layout.css';
 
@@ -26,7 +26,6 @@ export function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
   const tenantNavigation = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Carteras', path: '/portfolios', icon: Briefcase },
-    { name: 'Obligaciones', path: '/obligations', icon: FileText },
     { name: 'Juzgados', path: '/courts', icon: Scale },
     { name: 'Reportes', path: '/reports', icon: BarChart3 },
     ...(isLegalRep ? [{ name: 'Asesores', path: '/employees', icon: Users }] : []),
