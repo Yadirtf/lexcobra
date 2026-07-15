@@ -22,11 +22,11 @@ const reportLinkBodySchema = z.object({
 
 // Helper to query portfolio obligations + follow-up info filtered by date
 async function getPortfolioReportData(clienteId: string, portfolioId: string, startDateStr: string, endDateStr: string) {
-  const start = new Date(startDateStr);
-  start.setHours(0, 0, 0, 0);
+  const [sYear, sMonth, sDay] = startDateStr.split('-').map(Number);
+  const start = new Date(sYear, sMonth - 1, sDay, 0, 0, 0, 0);
 
-  const end = new Date(endDateStr);
-  end.setHours(23, 59, 59, 999);
+  const [eYear, eMonth, eDay] = endDateStr.split('-').map(Number);
+  const end = new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999);
 
   // Validate portfolio
   const portfolio = await prisma.cartera.findFirst({
@@ -452,6 +452,87 @@ export async function reportsRoutes(fastify: FastifyInstance) {
     }
   });
 
+  /**
+   * GET /api/reports/public/:token/pdf
+   * Descarga el PDF del reporte compartido usando el token, sin autenticación.
+   * Respeta exactamente las fechas (periodStart / periodEnd) guardadas en el snapshot.
+   */
+  fastify.get('/public/:token/pdf', async (request, reply) => {
+    try {
+      const { token } = request.params as { token: string };
+
+      const link = await prisma.reportLink.findUnique({
+        where: { token, isActive: true },
+        include: {
+          reportSnapshot: {
+            include: {
+              cartera: true,
+              cliente: true,
+            },
+          },
+        },
+      });
+
+      if (!link) {
+        return reply.status(404).send(errorResponse('NOT_FOUND', 'El enlace de reporte no existe o fue desactivado.'));
+      }
+
+      if (link.expiresAt && link.expiresAt < new Date()) {
+        return reply.status(410).send(errorResponse('EXPIRED', 'El enlace ha expirado.'));
+      }
+
+      const snap = link.reportSnapshot;
+      const startDateStr = snap.periodStart.toISOString().split('T')[0];
+      const endDateStr   = snap.periodEnd.toISOString().split('T')[0];
+
+      const { obligations } = await getPortfolioReportData(
+        snap.clienteId,
+        snap.carteraId || '',
+        startDateStr,
+        endDateStr
+      );
+
+      // Nombre de la casa de cobranza
+      const agencyName    = snap.cliente.nombreComercial;
+      const portfolioName = snap.cartera?.nombreEntidad || 'N/A';
+      const nit           = snap.cartera?.nit || '';
+      const title         = snap.title;
+
+      // Catálogos para compilar el historial
+      const [estados, niveles, medidas, juzgados] = await Promise.all([
+        prisma.estadoObligacion.findMany(),
+        prisma.nivelRecuperacion.findMany(),
+        prisma.medidaCautelar.findMany(),
+        prisma.juzgado.findMany({ where: { clienteId: snap.clienteId } }),
+      ]);
+      const catalogs = { estados, niveles, medidas, juzgados };
+
+      const decoratedObligations = obligations.map(obs => ({
+        ...obs,
+        historialTimeline: compileTimeline(obs, catalogs),
+        timelineEvents:    getTimelineEvents(obs, catalogs),
+      }));
+
+      const dateRangeStr = `${startDateStr} al ${endDateStr}`;
+      const buffer = await buildPdfReport(
+        title,
+        portfolioName,
+        nit,
+        dateRangeStr,
+        decoratedObligations,
+        agencyName
+      );
+
+      reply
+        .header('Content-Type', 'application/pdf')
+        .header('Content-Disposition', `attachment; filename=reporte_${token}.pdf`)
+        .send(buffer);
+    } catch (error: any) {
+      fastify.log.error(error);
+      return reply.status(500).send(errorResponse('INTERNAL_ERROR', 'Error al generar el PDF del reporte compartido'));
+    }
+  });
+
   // ── RUTAS PROTEGIDAS (Requieren autenticación) ────────────────
 
   fastify.register(async (protectedRoutes) => {
@@ -560,6 +641,13 @@ export async function reportsRoutes(fastify: FastifyInstance) {
           endDate
         );
 
+        // Obtener nombre de la casa de cobranza (agencia)
+        const agencyRecord = await prisma.cliente.findUnique({
+          where: { id: user.clienteId },
+          select: { nombreComercial: true },
+        });
+        const agencyName = agencyRecord?.nombreComercial || 'Casa de Cobranza';
+
         // Cargar catálogos para compilar el historial
         const [estados, niveles, medidas, juzgados] = await Promise.all([
           prisma.estadoObligacion.findMany(),
@@ -576,7 +664,7 @@ export async function reportsRoutes(fastify: FastifyInstance) {
         }));
 
         const dateRangeStr = `${startDate} al ${endDate}`;
-        const buffer = await buildPdfReport(title, portfolio.nombreEntidad, portfolio.nit || '', dateRangeStr, decoratedObligations);
+        const buffer = await buildPdfReport(title, portfolio.nombreEntidad, portfolio.nit || '', dateRangeStr, decoratedObligations, agencyName);
 
         reply
           .header('Content-Type', 'application/pdf')

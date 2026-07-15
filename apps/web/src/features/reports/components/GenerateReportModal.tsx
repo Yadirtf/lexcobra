@@ -31,7 +31,7 @@ export function GenerateReportModal({ isOpen, onClose, portfolioId, portfolioNam
   // Auto-calculate dates based on period selection
   useEffect(() => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
     
     if (period === 'mes_actual') {
       const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
