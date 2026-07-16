@@ -248,5 +248,19 @@ export async function catalogsRoutes(fastify: FastifyInstance) {
         return reply.status(500).send(errorResponse('INTERNAL_ERROR', 'Error al obtener tipos de id'));
       }
     });
+
+    // GET /catalogs/cargos — Cargos disponibles para asesores
+    protectedFastify.get('/cargos', async (_request, reply) => {
+      try {
+        const cargos = await prisma.cargo.findMany({
+          orderBy: { nombreCargo: 'asc' },
+          select: { id: true, nombreCargo: true, descripcion: true },
+        });
+        return reply.send(successResponse(cargos));
+      } catch (error) {
+        fastify.log.error(error);
+        return reply.status(500).send(errorResponse('INTERNAL_ERROR', 'Error al obtener los cargos'));
+      }
+    });
   });
 }

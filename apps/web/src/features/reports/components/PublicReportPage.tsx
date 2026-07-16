@@ -696,7 +696,6 @@ export function PublicReportPage() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', borderLeft: `2px solid ${T.border}`, paddingLeft: '1.2rem', marginLeft: '0.4rem' }}>
                       {obs.timelineEvents.map((item: any, i: number) => {
-                        const isToday = item.dateStr === new Date().toLocaleDateString('es-CO');
                         return (
                           <div key={i} style={{ position: 'relative' }}>
                             <div style={{

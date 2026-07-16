@@ -20,6 +20,7 @@ export function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     { name: 'Catálogos Globales', path: '/admin/catalogos', icon: Settings },
     { name: 'Ubicaciones (Colombia)', path: '/admin/ubicaciones', icon: MapPin },
     { name: 'Usuarios Internos', path: '/admin/usuarios', icon: Users },
+    { name: 'Mi Perfil', path: '/my-profile', icon: Settings },
   ];
 
   // Menú para los Clientes (Casas de Cobranza / Tenants)
@@ -29,6 +30,7 @@ export function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     { name: 'Juzgados', path: '/courts', icon: Scale },
     { name: 'Reportes', path: '/reports', icon: BarChart3 },
     ...(isLegalRep ? [{ name: 'Asesores', path: '/employees', icon: Users }] : []),
+    { name: 'Mi Perfil', path: '/my-profile', icon: Settings },
   ];
 
   const navigation = isSuperAdmin ? adminNavigation : tenantNavigation;

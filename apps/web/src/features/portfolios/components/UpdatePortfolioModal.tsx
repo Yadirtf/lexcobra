@@ -46,12 +46,6 @@ export function UpdatePortfolioModal({ isOpen, onClose, portfolio }: UpdatePortf
         id: portfolio.id,
         data: {
           ...formData,
-          correo: formData.correo || undefined,
-          nit: formData.nit || undefined,
-          telefono: formData.telefono || undefined,
-          representante: formData.representante || undefined,
-          logoUrl: formData.logoUrl || undefined,
-          observaciones: formData.observaciones || undefined,
         }
       });
       onClose();

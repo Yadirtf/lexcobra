@@ -7,6 +7,12 @@ export interface CatalogItem {
   color?: string | null;
 }
 
+export interface Cargo {
+  id: string;
+  nombreCargo: string;
+  descripcion: string | null;
+}
+
 export function useCatalogs() {
   const { data: estadosObligacion, isLoading: loadingEstados } = useQuery({
     queryKey: ['catalogs', 'estados-obligacion'],
@@ -51,4 +57,17 @@ export function useCatalogs() {
     medidasCautelares,
     isLoading: loadingEstados || loadingNiveles || loadingContactos || loadingMedidas
   };
+}
+
+/** Hook para obtener los cargos disponibles para asesores */
+export function useCargos() {
+  return useQuery({
+    queryKey: ['catalogs', 'cargos'],
+    queryFn: async () => {
+      const res = await apiClient.get<{ success: boolean; data: Cargo[] }>('/catalogs/cargos');
+      if (!res.success) throw new Error('Error al obtener cargos');
+      return res.data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutos — los cargos cambian poco
+  });
 }

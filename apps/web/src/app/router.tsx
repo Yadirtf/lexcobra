@@ -12,6 +12,7 @@ import { AdminCatalogsPage } from '../features/admin/components/AdminCatalogsPag
 import { AdminUsersPage } from '../features/admin/components/AdminUsersPage.js';
 import { AdminLocationsPage } from '../features/admin/components/AdminLocationsPage.js';
 import { EmployeesListPage } from '../features/employees/components/EmployeesListPage.js';
+import { MyProfilePage } from '../features/employees/components/MyProfilePage.js';
 import { CourtsPage } from '../features/courts/components/CourtsPage.js';
 import { PublicReportPage } from '../features/reports/components/PublicReportPage.js';
 
@@ -72,11 +73,25 @@ const courtsRoute = createRoute({ getParentRoute: () => appRoute, path: '/courts
 const reportsRoute = createRoute({ getParentRoute: () => appRoute, path: '/reports', component: () => <PlaceholderPage title="Reportes" /> });
 const catalogsRoute = createRoute({ getParentRoute: () => appRoute, path: '/catalogs', component: () => <PlaceholderPage title="Catálogos" /> });
 
-// Employees route (Tenant level)
+// Employees route — Solo Admin (Representante Legal y Dueño del sistema)
 const employeesRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/employees',
   component: EmployeesListPage,
+  beforeLoad: () => {
+    const { isLegalRep, isSuperAdmin } = useAuth.getState();
+    if (!isLegalRep && !isSuperAdmin) {
+      // El asesor (rol 'Usuario') no puede ver la lista — redirigir a su perfil
+      throw redirect({ to: '/my-profile' });
+    }
+  },
+});
+
+// My Profile route — Disponible para TODOS los roles autenticados
+const myProfileRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/my-profile',
+  component: MyProfilePage,
 });
 
 // ── Admin Routes (Protected by RBAC) ──────────────────────────
@@ -134,6 +149,7 @@ const routeTree = rootRoute.addChildren([
     reportsRoute,
     catalogsRoute,
     employeesRoute,
+    myProfileRoute,
     adminRoute.addChildren([
       adminDashboardRoute,
       adminTenantsRoute,

@@ -9,9 +9,11 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { LoginUseCase } from '../../core/use-cases/auth/login.use-case.js';
+import { ChangeOwnPasswordUseCase } from '../../core/use-cases/auth/ChangeOwnPasswordUseCase.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { successResponse, errorResponse } from '../../shared/utils/index.js';
 import { AppError } from '../../shared/errors/AppError.js';
+import { changeOwnPasswordSchema } from '@lexcobra/shared-schemas';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -19,6 +21,7 @@ const loginSchema = z.object({
 });
 
 const loginUseCase = new LoginUseCase();
+const changeOwnPasswordUseCase = new ChangeOwnPasswordUseCase();
 
 export async function authRoutes(fastify: FastifyInstance) {
   /**
@@ -113,6 +116,41 @@ export async function authRoutes(fastify: FastifyInstance) {
     } catch {
       reply.clearCookie('refresh_token', { path: '/api/auth' });
       return reply.status(401).send(errorResponse('UNAUTHORIZED', 'Sesión expirada'));
+    }
+  });
+
+  /**
+   * PATCH /api/auth/change-password
+   * El usuario autenticado cambia su propia contraseña.
+   * Requiere la contraseña actual para verificación.
+   */
+  fastify.patch('/change-password', { preHandler: [authenticate] }, async (request, reply) => {
+    const user = request.currentUser;
+    if (!user) {
+      return reply.status(401).send(errorResponse('UNAUTHORIZED', 'No autenticado'));
+    }
+
+    const parseResult = changeOwnPasswordSchema.safeParse(request.body);
+    if (!parseResult.success) {
+      return reply.status(422).send(
+        errorResponse('VALIDATION_ERROR', parseResult.error.issues[0]?.message ?? 'Datos inválidos'),
+      );
+    }
+
+    try {
+      await changeOwnPasswordUseCase.execute({
+        usuarioId: user.userId,
+        passwordActual: parseResult.data.passwordActual,
+        passwordNuevo: parseResult.data.passwordNuevo,
+      });
+
+      return reply.send(successResponse(null, { message: 'Contraseña actualizada correctamente' }));
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.status(err.statusCode).send(errorResponse(err.code, err.message));
+      }
+      fastify.log.error(err);
+      return reply.status(500).send(errorResponse('INTERNAL_ERROR', 'Error actualizando la contraseña'));
     }
   });
 }

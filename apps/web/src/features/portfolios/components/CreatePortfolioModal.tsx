@@ -26,13 +26,7 @@ export function CreatePortfolioModal({ isOpen, onClose }: CreatePortfolioModalPr
     e.preventDefault();
     try {
       await createPortfolio({
-        ...formData,
-        correo: formData.correo || undefined,
-        nit: formData.nit || undefined,
-        telefono: formData.telefono || undefined,
-        representante: formData.representante || undefined,
-        logoUrl: formData.logoUrl || undefined,
-        observaciones: formData.observaciones || undefined,
+        ...formData
       });
       onClose();
       setFormData({ nombreEntidad: '', nit: '', representante: '', telefono: '', correo: '', logoUrl: '', observaciones: '' });

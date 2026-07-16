@@ -91,6 +91,78 @@ export const createCourtSchema = z.object({
 export const updateCourtSchema = createCourtSchema.partial();
 
 // ── Empleado ───────────────────────────────────────────────────
+
+/**
+ * Schema para crear un empleado/asesor con credenciales de acceso.
+ * Solo el Administrador (Representante Legal) puede ejecutar esta acción.
+ */
+export const createEmployeeWithCredentialsSchema = z.object({
+  // Datos del perfil del empleado
+  identificacion: z.string().min(1, 'La identificación es requerida').max(20),
+  nombres: z.string().min(1, 'Los nombres son requeridos').max(100),
+  apellidos: z.string().min(1, 'Los apellidos son requeridos').max(100),
+  telefono: z.string().max(20).optional(),
+  cargoId: z.string().uuid('ID de cargo inválido').optional(),
+  // Credenciales de acceso al sistema
+  correo: z.string().email('Correo electrónico inválido').max(100),
+  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres').max(100),
+});
+
+/**
+ * Schema para actualizar el perfil de un empleado (datos personales únicamente).
+ * El correo NO se incluye aquí — solo el admin puede actualizarlo via updateEmployeeEmailSchema.
+ */
+export const updateEmployeeProfileSchema = z.object({
+  nombres: z.string().min(1, 'Los nombres son requeridos').max(100).optional(),
+  apellidos: z.string().min(1, 'Los apellidos son requeridos').max(100).optional(),
+  telefono: z.string().max(20).optional().nullable(),
+  cargoId: z.string().uuid('ID de cargo inválido').optional().nullable(),
+});
+
+/**
+ * Schema para que el Administrador actualice el correo de un asesor.
+ * Acción exclusiva del Representante Legal (Administrador del tenant).
+ */
+export const updateEmployeeEmailSchema = z.object({
+  correo: z.string().email('Correo electrónico inválido').max(100),
+});
+
+/**
+ * Schema para que el usuario cambie su PROPIA contraseña.
+ * Requiere verificación de la contraseña actual.
+ */
+export const changeOwnPasswordSchema = z
+  .object({
+    passwordActual: z.string().min(1, 'La contraseña actual es requerida'),
+    passwordNuevo: z
+      .string()
+      .min(8, 'La nueva contraseña debe tener al menos 8 caracteres')
+      .max(100),
+    passwordNuevoConfirmacion: z.string().min(1, 'La confirmación es requerida'),
+  })
+  .refine((data) => data.passwordNuevo === data.passwordNuevoConfirmacion, {
+    message: 'Las contraseñas no coinciden',
+    path: ['passwordNuevoConfirmacion'],
+  });
+
+/**
+ * Schema para que el Administrador resetee la contraseña de un asesor.
+ * No requiere la contraseña actual — acción administrativa.
+ */
+export const resetPasswordByAdminSchema = z
+  .object({
+    passwordNuevo: z
+      .string()
+      .min(8, 'La nueva contraseña debe tener al menos 8 caracteres')
+      .max(100),
+    passwordNuevoConfirmacion: z.string().min(1, 'La confirmación es requerida'),
+  })
+  .refine((data) => data.passwordNuevo === data.passwordNuevoConfirmacion, {
+    message: 'Las contraseñas no coinciden',
+    path: ['passwordNuevoConfirmacion'],
+  });
+
+// Schema legacy — mantenido por compatibilidad
 export const createEmpleadoSchema = z.object({
   identificacion: z.string().min(1, 'La identificación es requerida').max(20),
   nombres: z.string().min(1, 'Los nombres son requeridos').max(100),
@@ -129,3 +201,9 @@ export type CreateCourtInput = z.infer<typeof createCourtSchema>;
 export type CreateEmpleadoInput = z.infer<typeof createEmpleadoSchema>;
 export type GenerateReportInput = z.infer<typeof generateReportSchema>;
 export type CreateReportLinkInput = z.infer<typeof createReportLinkSchema>;
+// Tipos nuevos del módulo de Asesores
+export type CreateEmployeeWithCredentialsInput = z.infer<typeof createEmployeeWithCredentialsSchema>;
+export type UpdateEmployeeProfileInput = z.infer<typeof updateEmployeeProfileSchema>;
+export type UpdateEmployeeEmailInput = z.infer<typeof updateEmployeeEmailSchema>;
+export type ChangeOwnPasswordInput = z.infer<typeof changeOwnPasswordSchema>;
+export type ResetPasswordByAdminInput = z.infer<typeof resetPasswordByAdminSchema>;
