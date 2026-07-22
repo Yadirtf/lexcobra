@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { User, Lock, Eye, EyeOff, Save, AlertCircle, ShieldCheck, Mail } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, Lock, Eye, EyeOff, Save, AlertCircle, ShieldCheck, Mail, Crown, ShieldAlert } from 'lucide-react';
 import { useMyProfile, useUpdateMyProfile, useChangeMyPassword } from '../api/employees.js';
+import { useAuth } from '../../auth/hooks/useAuth.js';
 import './Employees.css';
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -23,6 +24,9 @@ const STRENGTH_CLASS = ['', 'filled-weak', 'filled-fair', 'filled-good', 'filled
 // ── Componente principal ───────────────────────────────────────
 
 export function MyProfilePage() {
+  const { isLegalRep, isSuperAdmin, updateUser } = useAuth();
+  const isRepresentative = isLegalRep || isSuperAdmin;
+
   const { data: profile, isLoading } = useMyProfile();
   const { mutateAsync: updateProfile, isPending: isUpdatingProfile } = useUpdateMyProfile();
   const { mutateAsync: changePassword, isPending: isChangingPassword } = useChangeMyPassword();
@@ -32,6 +36,7 @@ export function MyProfilePage() {
     nombres: '',
     apellidos: '',
     telefono: '',
+    correo: '',
   });
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -58,13 +63,16 @@ export function MyProfilePage() {
     : (profile?.firstName?.charAt(0) ?? 'U').toUpperCase();
 
   // Prellenar cuando el perfil carga
-  if (empleado && !profileData.nombres && !isLoading) {
-    setProfileData({
-      nombres: empleado.nombres,
-      apellidos: empleado.apellidos,
-      telefono: empleado.telefono ?? '',
-    });
-  }
+  useEffect(() => {
+    if (profile && !isLoading) {
+      setProfileData({
+        nombres: empleado ? empleado.nombres : profile.firstName ?? '',
+        apellidos: empleado ? empleado.apellidos : profile.lastName ?? '',
+        telefono: empleado?.telefono ?? '',
+        correo: profile.email ?? empleado?.usuario?.correo ?? '',
+      });
+    }
+  }, [profile, empleado, isLoading]);
 
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,7 +82,16 @@ export function MyProfilePage() {
         nombres: profileData.nombres.trim(),
         apellidos: profileData.apellidos.trim(),
         telefono: profileData.telefono.trim() || null,
+        ...(isRepresentative && profileData.correo ? { correo: profileData.correo.trim() } : {}),
       });
+
+      // Sincronizar estado global del usuario
+      updateUser({
+        firstName: profileData.nombres.trim(),
+        lastName: profileData.apellidos.trim(),
+        ...(isRepresentative && profileData.correo ? { email: profileData.correo.trim() } : {}),
+      });
+
       setProfileMsg({ type: 'success', text: 'Tu perfil fue actualizado correctamente.' });
     } catch (err) {
       setProfileMsg({
@@ -127,13 +144,13 @@ export function MyProfilePage() {
       <div style={{ marginBottom: '2rem' }}>
         <h1 className="employees-title">Mi Perfil</h1>
         <p className="employees-subtitle">
-          Actualiza tus datos personales y contraseña de acceso
+          Gestiona tu información personal, correo de acceso y contraseña
         </p>
       </div>
 
       {/* ── Avatar y datos básicos ── */}
       <div className="profile-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <div className="profile-avatar-lg" style={{ margin: 0 }}>
             {initials}
           </div>
@@ -145,91 +162,162 @@ export function MyProfilePage() {
             </div>
             <div style={{ color: 'var(--text-3)', fontSize: '0.85rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <Mail size={13} />
-              {profile?.email}
+              {profileData.correo || profile?.email}
             </div>
-            {empleado?.cargo && (
-              <span className="employee-cargo-badge" style={{ marginTop: '0.4rem', display: 'inline-block' }}>
-                {empleado.cargo.nombreCargo}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
+              <span
+                className="employee-cargo-badge"
+                style={{
+                  background: isRepresentative ? 'rgba(16,185,129,0.15)' : undefined,
+                  color: isRepresentative ? '#34d399' : undefined,
+                  borderColor: isRepresentative ? 'rgba(16,185,129,0.3)' : undefined,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                }}
+              >
+                {isRepresentative ? <Crown size={12} /> : null}
+                {isRepresentative
+                  ? 'Representante Legal'
+                  : (empleado?.cargo?.nombreCargo ?? 'Asesor de Cobranza')}
               </span>
-            )}
+            </div>
           </div>
-        </div>
-
-        {/* Nota sobre el correo */}
-        <div style={{
-          background: 'rgba(59,130,246,0.07)',
-          border: '1px solid rgba(59,130,246,0.2)',
-          borderRadius: '8px',
-          padding: '0.65rem 0.9rem',
-          display: 'flex',
-          gap: '0.5rem',
-          alignItems: 'center',
-          marginBottom: '0.5rem',
-        }}>
-          <Mail size={14} style={{ color: '#93c5fd', flexShrink: 0 }} />
-          <p style={{ fontSize: '0.82rem', color: '#93c5fd' }}>
-            Tu correo de acceso ({profile?.email}) solo puede ser cambiado por el Representante Legal.
-          </p>
         </div>
       </div>
 
       {/* ── Formulario: Datos personales ── */}
-      {empleado && (
-        <div className="profile-card">
-          <h2 className="profile-card-title">
-            <User size={18} style={{ color: 'var(--accent-h)' }} />
-            Datos personales
-          </h2>
+      <div className="profile-card">
+        <h2 className="profile-card-title">
+          <User size={18} style={{ color: 'var(--accent-h)' }} />
+          Datos personales y de contacto
+        </h2>
 
-          {profileMsg && (
-            <div
-              className="security-alert"
-              style={
-                profileMsg.type === 'success'
-                  ? { background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.25)', marginBottom: '1rem' }
-                  : { background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.25)', marginBottom: '1rem' }
-              }
-            >
-              {profileMsg.type === 'success' ? (
-                <ShieldCheck size={16} style={{ color: '#34d399', flexShrink: 0 }} />
-              ) : (
-                <AlertCircle size={16} style={{ color: '#f87171', flexShrink: 0 }} />
-              )}
-              <p style={{ color: profileMsg.type === 'success' ? '#6ee7b7' : '#fca5a5' }}>
-                {profileMsg.text}
+        {/* Banner informativo según rol */}
+        {isRepresentative ? (
+          <div style={{
+            background: 'rgba(16,185,129,0.08)',
+            border: '1px solid rgba(16,185,129,0.25)',
+            borderRadius: '8px',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            gap: '0.69rem',
+            alignItems: 'center',
+            marginBottom: '1.25rem',
+          }}>
+            <Crown size={18} style={{ color: '#34d399', flexShrink: 0 }} />
+            <div>
+              <strong style={{ color: '#6ee7b7', fontSize: '0.88rem', display: 'block' }}>
+                Perfil de Representante Legal (Control Total)
+              </strong>
+              <p style={{ fontSize: '0.82rem', color: '#a7f3d0', margin: 0 }}>
+                Tienes permisos para modificar el correo electrónico de acceso de tu cuenta y administrar los correos y asesores de tu empresa.
               </p>
             </div>
-          )}
+          </div>
+        ) : (
+          <div style={{
+            background: 'rgba(59,130,246,0.08)',
+            border: '1px solid rgba(59,130,246,0.25)',
+            borderRadius: '8px',
+            padding: '0.75rem 1rem',
+            display: 'flex',
+            gap: '0.69rem',
+            alignItems: 'center',
+            marginBottom: '1.25rem',
+          }}>
+            <ShieldAlert size={18} style={{ color: '#60a5fa', flexShrink: 0 }} />
+            <div>
+              <strong style={{ color: '#93c5fd', fontSize: '0.88rem', display: 'block' }}>
+                Perfil de Asesor / Empleado
+              </strong>
+              <p style={{ fontSize: '0.82rem', color: '#bfdbfe', margin: 0 }}>
+                Puedes actualizar tus nombres y teléfono. El campo de correo electrónico está protegido y solo puede ser modificado por el Representante Legal.
+              </p>
+            </div>
+          </div>
+        )}
 
-          <form onSubmit={handleProfileSubmit} className="profile-form">
-            <div className="form-row">
-              <div className="form-group">
-                <label className="form-label">Nombres *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  required
-                  maxLength={100}
-                  value={profileData.nombres}
-                  onChange={(e) => setProfileData((p) => ({ ...p, nombres: e.target.value }))}
-                  id="profile-nombres"
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Apellidos *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  required
-                  maxLength={100}
-                  value={profileData.apellidos}
-                  onChange={(e) => setProfileData((p) => ({ ...p, apellidos: e.target.value }))}
-                  id="profile-apellidos"
-                />
-              </div>
+        {profileMsg && (
+          <div
+            className="security-alert"
+            style={
+              profileMsg.type === 'success'
+                ? { background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.25)', marginBottom: '1rem' }
+                : { background: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.25)', marginBottom: '1rem' }
+            }
+          >
+            {profileMsg.type === 'success' ? (
+              <ShieldCheck size={16} style={{ color: '#34d399', flexShrink: 0 }} />
+            ) : (
+              <AlertCircle size={16} style={{ color: '#f87171', flexShrink: 0 }} />
+            )}
+            <p style={{ color: profileMsg.type === 'success' ? '#6ee7b7' : '#fca5a5' }}>
+              {profileMsg.text}
+            </p>
+          </div>
+        )}
+
+        <form onSubmit={handleProfileSubmit} className="profile-form">
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">Nombres *</label>
+              <input
+                type="text"
+                className="form-input"
+                required
+                maxLength={100}
+                value={profileData.nombres}
+                onChange={(e) => setProfileData((p) => ({ ...p, nombres: e.target.value }))}
+                id="profile-nombres"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Apellidos *</label>
+              <input
+                type="text"
+                className="form-input"
+                required
+                maxLength={100}
+                value={profileData.apellidos}
+                onChange={(e) => setProfileData((p) => ({ ...p, apellidos: e.target.value }))}
+                id="profile-apellidos"
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>Correo electrónico {isRepresentative ? '*' : ''}</span>
+                {!isRepresentative && (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-4)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <Lock size={12} /> Exclusivo Representante Legal
+                  </span>
+                )}
+              </label>
+              <input
+                type="email"
+                className="form-input"
+                required={isRepresentative}
+                disabled={!isRepresentative}
+                maxLength={100}
+                value={profileData.correo}
+                onChange={(e) => setProfileData((p) => ({ ...p, correo: e.target.value }))}
+                style={{
+                  opacity: !isRepresentative ? 0.65 : 1,
+                  cursor: !isRepresentative ? 'not-allowed' : 'text',
+                }}
+                id="profile-correo"
+              />
+              {isRepresentative && (
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-3)', marginTop: '0.35rem' }}>
+                  Este correo se utiliza como usuario de acceso a la plataforma.
+                </p>
+              )}
             </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
+            <div className="form-group">
               <label className="form-label">Teléfono</label>
               <input
                 type="tel"
@@ -241,20 +329,20 @@ export function MyProfilePage() {
                 id="profile-telefono"
               />
             </div>
+          </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button
-                type="submit"
-                className="btn-primary"
-                disabled={isUpdatingProfile || !profileData.nombres || !profileData.apellidos}
-                id="btn-save-profile"
-              >
-                {isUpdatingProfile ? 'Guardando…' : <><Save size={16} /> Guardar Cambios</>}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={isUpdatingProfile || !profileData.nombres || !profileData.apellidos}
+              id="btn-save-profile"
+            >
+              {isUpdatingProfile ? 'Guardando…' : <><Save size={16} /> Guardar Cambios</>}
+            </button>
+          </div>
+        </form>
+      </div>
 
       {/* ── Formulario: Cambiar contraseña ── */}
       <div className="profile-card">

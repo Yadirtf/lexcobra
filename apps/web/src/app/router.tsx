@@ -32,11 +32,19 @@ const appRoute = createRoute({
   },
 });
 
+import { useNavigate } from '@tanstack/react-router';
+
 // Dashboard page (inside layout)
 const dashboardRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/',
   component: DashboardPage,
+  beforeLoad: () => {
+    const { isSuperAdmin } = useAuth.getState();
+    if (isSuperAdmin) {
+      throw redirect({ to: '/admin/clientes' });
+    }
+  },
 });
 
 // Portfolios list page
@@ -106,7 +114,14 @@ const adminRoute = createRoute({
   },
 });
 
-const adminDashboardRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/dashboard', component: AdminDashboardPage });
+const adminDashboardRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: '/admin/dashboard',
+  beforeLoad: () => {
+    throw redirect({ to: '/admin/clientes' });
+  },
+  component: AdminDashboardPage,
+});
 const adminTenantsRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/clientes', component: TenantsListPage });
 const adminPlansRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/planes', component: AdminPlansPage });
 const adminCatalogsRoute = createRoute({ getParentRoute: () => adminRoute, path: '/admin/catalogos', component: AdminCatalogsPage });
@@ -119,12 +134,28 @@ const loginRoute = createRoute({
   path: '/login',
   component: function LoginRoute() {
     const { login, isLoading, error } = useAuth();
-    return <LoginPage onLogin={async (creds) => { await login(creds.email, creds.password); }} isLoading={isLoading} error={error} />;
+    const navigate = useNavigate();
+
+    return (
+      <LoginPage
+        onLogin={async (creds) => {
+          const user = await login(creds.email, creds.password);
+          const isSuperAdmin = user.roles?.includes('Dueño del sistema');
+          if (isSuperAdmin) {
+            navigate({ to: '/admin/clientes' });
+          } else {
+            navigate({ to: '/' });
+          }
+        }}
+        isLoading={isLoading}
+        error={error}
+      />
+    );
   },
   beforeLoad: () => {
-    const { isAuthenticated } = useAuth.getState();
+    const { isAuthenticated, isSuperAdmin } = useAuth.getState();
     if (isAuthenticated) {
-      throw redirect({ to: '/' });
+      throw redirect({ to: isSuperAdmin ? '/admin/clientes' : '/' });
     }
   },
 });

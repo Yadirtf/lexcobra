@@ -85,8 +85,8 @@ export async function employeesRoutes(fastify: FastifyInstance) {
 
   // ─────────────────────────────────────────────────────────────
   // PATCH /api/employees/me/profile
-  // El asesor actualiza sus propios datos: nombres, apellidos, teléfono.
-  // NO puede cambiar su correo (solo el Admin puede hacerlo).
+  // El usuario actualiza sus propios datos: nombres, apellidos, teléfono.
+  // Solo el Representante Legal (Administrador/Dueño del sistema) puede cambiar su correo.
   // ─────────────────────────────────────────────────────────────
   fastify.patch('/me/profile', async (request, reply) => {
     const user = request.currentUser;
@@ -94,11 +94,49 @@ export async function employeesRoutes(fastify: FastifyInstance) {
       return reply.status(401).send(errorResponse('UNAUTHORIZED', 'No autenticado'));
     }
 
-    const parseResult = updateEmployeeProfileSchema.safeParse(request.body);
+    const body = request.body as Record<string, any>;
+    const parseResult = updateEmployeeProfileSchema.safeParse(body);
     if (!parseResult.success) {
       return reply.status(422).send(
         errorResponse('VALIDATION_ERROR', parseResult.error.issues[0]?.message ?? 'Datos inválidos'),
       );
+    }
+
+    const isLegalRep = user.roles.includes('Administrador') || user.roles.includes('Dueño del sistema');
+
+    // Si intenta cambiar correo
+    if (typeof body.correo === 'string' && body.correo.trim().toLowerCase() !== user.email.toLowerCase()) {
+      if (!isLegalRep) {
+        return reply.status(403).send(
+          errorResponse('FORBIDDEN', 'Solo el Representante Legal puede cambiar el correo electrónico de acceso'),
+        );
+      }
+
+      const correoNormalizado = body.correo.trim().toLowerCase();
+      // Validar formato de correo
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoNormalizado)) {
+        return reply.status(422).send(errorResponse('VALIDATION_ERROR', 'Correo electrónico inválido'));
+      }
+
+      // Verificar que no esté en uso por otro usuario del mismo cliente
+      if (user.clienteId) {
+        const existente = await prisma.usuario.findFirst({
+          where: {
+            clienteId: user.clienteId,
+            correo: correoNormalizado,
+            id: { not: user.userId },
+          },
+        });
+        if (existente) {
+          return reply.status(409).send(errorResponse('CONFLICT', `El correo "${correoNormalizado}" ya está registrado`));
+        }
+      }
+
+      // Actualizar el correo del usuario
+      await prisma.usuario.update({
+        where: { id: user.userId },
+        data: { correo: correoNormalizado },
+      });
     }
 
     try {

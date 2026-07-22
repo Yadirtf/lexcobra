@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router';
 import { Search, LogOut, Building2, Sun, Moon, Menu } from 'lucide-react';
 import { useAuth } from '../../../features/auth/hooks/useAuth.js';
 import { useTheme } from '../../../features/theme/hooks/useTheme.js';
@@ -45,15 +46,17 @@ export function Header({ toggleSidebar }: HeaderProps) {
           {tenantName}
         </div>
 
-        <div className="user-profile">
-          <div className="user-info hide-on-mobile" style={{ textAlign: 'right' }}>
-            <span className="user-name">{user?.firstName} {user?.lastName}</span>
-            <span className="user-role">{user?.roles?.[0]}</span>
+        <Link to="/my-profile" className="user-profile-link" title="Gestionar Mi Perfil">
+          <div className="user-profile">
+            <div className="user-info hide-on-mobile" style={{ textAlign: 'right' }}>
+              <span className="user-name">{user?.firstName} {user?.lastName}</span>
+              <span className="user-role">{user?.roles?.[0]}</span>
+            </div>
+            <div className="avatar">
+              {user?.firstName?.[0]}{user?.lastName?.[0]}
+            </div>
           </div>
-          <div className="avatar">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
-          </div>
-        </div>
+        </Link>
 
         <button className="icon-btn" onClick={toggleTheme} title="Cambiar tema" style={{ padding: '0.4rem', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text)' }}>
           {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}

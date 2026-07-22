@@ -26,6 +26,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
   clearError: () => void;
+  updateUser: (partial: Partial<AuthUser>) => void;
   // Helpers
   isSuperAdmin: boolean;
   isLegalRep: boolean;
@@ -45,6 +46,11 @@ export const useAuth = create<AuthState>()(
       isLegalRep: false,
       isEmployee: false,
       canManageUsers: false,
+
+      updateUser: (partial) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...partial } : null,
+        })),
 
   login: async (email, password) => {
     set({ isLoading: true, error: null });

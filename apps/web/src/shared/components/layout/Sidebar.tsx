@@ -14,13 +14,11 @@ export function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
 
   // Menú para el Dueño del Sistema (LexCobra SaaS)
   const adminNavigation = [
-    { name: 'Resumen Global', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Casas de Cobranza', path: '/admin/clientes', icon: Building2 },
     { name: 'Planes & Facturación', path: '/admin/planes', icon: CreditCard },
     { name: 'Catálogos Globales', path: '/admin/catalogos', icon: Settings },
     { name: 'Ubicaciones (Colombia)', path: '/admin/ubicaciones', icon: MapPin },
     { name: 'Usuarios Internos', path: '/admin/usuarios', icon: Users },
-    { name: 'Mi Perfil', path: '/my-profile', icon: Settings },
   ];
 
   // Menú para los Clientes (Casas de Cobranza / Tenants)
@@ -30,7 +28,6 @@ export function Sidebar({ isOpen, closeSidebar }: SidebarProps) {
     { name: 'Juzgados', path: '/courts', icon: Scale },
     { name: 'Reportes', path: '/reports', icon: BarChart3 },
     ...(isLegalRep ? [{ name: 'Asesores', path: '/employees', icon: Users }] : []),
-    { name: 'Mi Perfil', path: '/my-profile', icon: Settings },
   ];
 
   const navigation = isSuperAdmin ? adminNavigation : tenantNavigation;

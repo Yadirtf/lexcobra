@@ -217,7 +217,7 @@ export function useUpdateMyProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: UpdateEmployeeProfileInput) => {
+    mutationFn: async (data: UpdateEmployeeProfileInput & { correo?: string }) => {
       const response = await apiClient.patch<{ success: boolean; data: Employee }>(
         '/employees/me/profile',
         data,
